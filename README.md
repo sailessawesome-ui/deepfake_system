@@ -1,4 +1,3 @@
-[Uploading README.md…]()
 # Frame Zero — deepfake video verification
 
 A working web app plus the training pipeline behind it. Built against the
