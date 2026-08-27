@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Deepfake Forensics — check this video",
+  "version": "1.0.0",
+  "description": "Right-click any video on Instagram, Facebook, TikTok or X and send it to your verification server.",
+  "permissions": ["contextMenus", "storage", "notifications", "scripting", "activeTab"],
+  "host_permissions": ["http://localhost:8000/*", "https://*/*"],
+  "background": { "service_worker": "background.js" },
+  "options_page": "options.html",
+  "action": { "default_popup": "popup.html", "default_title": "Deepfake Forensics" },
+  "icons": { "128": "icon128.png" }
+}

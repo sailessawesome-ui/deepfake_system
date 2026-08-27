@@ -1,0 +1,11 @@
+# Full set: training, evaluation and the web app.
+# For the web app alone, requirements-web.txt is enough.
+-r requirements-web.txt
+torch>=2.2
+torchvision>=0.17
+timm>=1.0.7
+scikit-learn>=1.4
+pandas>=2.2
+facenet-pytorch>=2.6      # MTCNN, as specified in the IR
+mediapipe>=0.10           # fallback face detector
+tqdm>=4.66

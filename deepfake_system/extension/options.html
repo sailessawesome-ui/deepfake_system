@@ -1,0 +1,16 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+body{font:14px system-ui;background:#0D121D;color:#E7EDF4;padding:24px;max-width:460px}
+h1{font-size:16px;margin:0 0 4px}p{color:#8B97A8;margin:0 0 18px;line-height:1.5}
+label{display:block;font-size:12px;color:#8B97A8;margin-bottom:6px}
+input{width:100%;padding:9px 11px;border-radius:6px;border:1px solid #26303B;background:#070A0F;color:inherit;font-family:ui-monospace,monospace}
+button{margin-top:14px;padding:9px 18px;border-radius:6px;border:1px solid #26303B;background:#131A29;color:inherit;cursor:pointer}
+#msg{margin-top:12px;font-size:13px;color:#34C8A5;min-height:18px}
+</style></head><body>
+<h1>Your verification server</h1>
+<p>Videos are sent here and nowhere else. Use your own address — a public one would mean handing someone else's server the media you are checking.</p>
+<label for="server">Server address</label>
+<input id="server" placeholder="http://localhost:8000">
+<button id="save">Save address</button>
+<div id="msg"></div>
+<script src="options.js"></script></body></html>

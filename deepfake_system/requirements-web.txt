@@ -1,0 +1,12 @@
+# Minimum to run the server and the interface. No GPU, no torch.
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9
+numpy>=1.26
+opencv-python-headless>=4.9,<5
+
+# Optional. Both degrade gracefully if absent — the app reports which
+# backend is live at /api/status.
+boto3>=1.34          # IR 2.4.4 DynamoDB report store; falls back to local JSON
+c2pa-python>=0.5     # validates Content Credentials signatures rather than
+                     # only detecting that a manifest box is present

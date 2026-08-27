@@ -1,0 +1,48 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.Python
+
+# ---- Runtime output (contains analysed filenames + hashes) ----
+reports/
+*.log
+
+# ---- Trained artefacts ----
+runs/
+*.pt
+*.pth
+*.onnx
+calibration.json
+history.json
+
+# ---- Datasets & manifests (GBs — never commit) ----
+manifest.csv
+data/FF++/
+data/celebdf_faces/
+data/df40_frames/
+data/wild/
+*.zip
+*.tar
+*.tar.gz
+test_videos/
+messenger_eval/
+
+# ---- Media dropped in for testing ----
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.3gp
+*.m4v
+
+# ---- Editors / OS ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

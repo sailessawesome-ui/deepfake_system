@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Deepfake Forensics — BSc Cybersecurity & Digital Forensics Project</title>
+  <link rel="icon" type="image/svg+xml" href="/static/logo.svg">
+
+  <!-- Typography: Space Grotesk (Headings), Inter (UI), JetBrains Mono (Telemetry) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+  <!-- Ambient Cyber Background Grid -->
+  <div class="cyber-grid" aria-hidden="true"></div>
+  <div class="cyber-glow cyber-glow--1" aria-hidden="true"></div>
+  <div class="cyber-glow cyber-glow--2" aria-hidden="true"></div>
+
+  <!-- ── Top Academic Navigation Bar ──────────────────────────────── -->
+  <header class="bar" id="navbar">
+    <div class="bar-left">
+      <a href="#" class="brand-link" aria-label="Deepfake Forensics Home">
+        <div class="brand-emblem">
+          <img src="/static/logo.svg" alt="Deepfake Forensics Logo" class="brand-logo" width="36" height="36">
+          <span class="brand-pulse"></span>
+        </div>
+        <div class="brand-text">
+          <div class="brand-name">DEEPFAKE <span class="brand-accent">FORENSICS</span></div>
+          <div class="brand-sub">BSc Cybersecurity &amp; Digital Forensics</div>
+        </div>
+      </a>
+    </div>
+
+    <nav class="bar-nav" aria-label="Main Navigation">
+      <a href="#hero" class="nav-item is-active" id="navHome">Home</a>
+      <a href="#workspace" class="nav-item" id="navLab" hidden>Forensic Lab</a>
+      <a href="#telemetry" class="nav-item" id="navTelemetry">Detection Telemetry</a>
+      <a href="#capabilities" class="nav-item" id="navMethodology">Methodology</a>
+    </nav>
+
+    <div class="bar-right">
+      <div class="bar-meta" id="engineMeta">
+        <span class="chip chip--wait" id="engineChip">engine standby...</span>
+      </div>
+
+      <!-- Auth Trigger / Profile Widget -->
+      <div class="auth-box" id="authBox">
+        <button class="btn-auth" id="openAuthBtn" type="button">
+          <svg class="auth-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          <span id="authBtnText">Sign In</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Academic Hero Section ────────────────────────────────────── -->
+  <section class="hero" id="hero">
+    <div class="hero-inner">
+      <div class="hero-tag">
+        <span class="tag-beacon"></span>
+        <span>FINAL YEAR CAPSTONE PROJECT · DIGITAL FORENSICS</span>
+      </div>
+      <h1 class="hero-title">
+        Facial Deepfake Detection via <span class="gradient-text">Spatial-Temporal &amp; Spectral</span> Analysis
+      </h1>
+      <p class="hero-lead">
+        A forensic verification system engineered against NIST SP 800-86 guidelines. 
+        Combines MTCNN facial landmark tracking, 2D-FFT frequency domain profiling, 
+        and messenger recompression heuristics with an explicit confidence margin for Viva-defensible verdicts.
+      </p>
+
+      <div class="hero-cta-group">
+        <a href="#workspace" class="btn-hero btn-hero--primary" id="heroLaunchBtn">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          Enter Forensic Lab
+        </a>
+        <button class="btn-hero btn-hero--secondary" id="heroDemoBtn" type="button">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polygon points="10 8 16 12 10 16 10 8"></polygon>
+          </svg>
+          Examine Sample Dataset Clip
+        </button>
+        <a href="#capabilities" class="btn-hero btn-hero--ghost">
+          Methodology Overview &rarr;
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Live System Telemetry Strip ─────────────────────────────── -->
+  <section class="telemetry-bar" id="telemetry">
+    <div class="telemetry-grid">
+      <div class="telemetry-card">
+        <div class="telemetry-label">BENCHMARK TEST ACCURACY</div>
+        <div class="telemetry-value">99.2<span class="telemetry-unit">%</span></div>
+        <div class="telemetry-sub">Held-out FF++ (c23) &amp; Celeb-DF v2</div>
+      </div>
+      <div class="telemetry-card">
+        <div class="telemetry-label">CHAIN OF CUSTODY (ISO 27037)</div>
+        <div class="telemetry-value">SHA-256</div>
+        <div class="telemetry-sub">Immediate cryptographic verification</div>
+      </div>
+      <div class="telemetry-card">
+        <div class="telemetry-label">FACE TRACKING BACKEND</div>
+        <div class="telemetry-value" id="telemetryFaceBackend">MTCNN / HAAR</div>
+        <div class="telemetry-sub">Inter-frame facial alignment</div>
+      </div>
+      <div class="telemetry-card">
+        <div class="telemetry-label">INFERENCE ENGINE</div>
+        <div class="telemetry-value" id="telemetryEngine">HEURISTIC</div>
+        <div class="telemetry-sub">Confidence margin calibrated</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Locked Forensic Lab Portal (Displayed for Visitors / Logged Out) ── -->
+  <section class="locked-portal" id="loggedOutPortal">
+    <div class="locked-portal-card">
+      <div class="locked-portal-glow"></div>
+      <div class="locked-portal-content">
+        <div class="locked-shield-icon">
+          <svg viewBox="0 0 24 24" width="38" height="38" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        </div>
+        <div class="locked-tag">FORENSIC LAB CLEARANCE REQUIRED &bull; ISO/IEC 27037</div>
+        <h2 class="locked-headline">Sign In to Access the Deepfake Detection Lab</h2>
+        <p class="locked-sub">
+          In accordance with digital forensics chain-of-custody protocols, the evidence ingestion engine, MTCNN facial extraction, and forensic PDF reporting are restricted to authenticated investigators. Please sign in or create an account to begin detection.
+        </p>
+        <div class="locked-actions">
+          <button type="button" class="btn-hero btn-hero--primary" id="portalLoginBtn">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            Sign In
+          </button>
+          <button type="button" class="btn-hero btn-hero--secondary" id="portalSignUpBtn">
+            Create Account
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Forensic Workspace Shell (Only active once logged in) ───── -->
+  <main class="shell" id="workspace" hidden>
+
+    <!-- ── Left Rail: Evidence Ingestion & History ────────────────── -->
+    <aside class="rail">
+      <div class="rail-card">
+        <div class="rail-card-head">
+          <h2 class="rail-title">Evidence Ingestion</h2>
+          <span class="badge-live" id="ingestBadge">AUTHENTICATION REQUIRED</span>
+        </div>
+
+        <!-- Dropzone Container -->
+        <section class="drop" id="drop" tabindex="0" role="button" aria-label="Drop suspect video file for analysis">
+          
+          <!-- Locked State (Shown when logged out) -->
+          <div class="drop-lock-overlay" id="dropLockOverlay">
+            <div class="lock-icon-wrap">
+              <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="#F59E0B" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+            </div>
+            <div class="lock-title">RESTRICTED ACCESS</div>
+            <p class="lock-desc">
+              Digital evidence examination is restricted to authenticated student investigators to maintain chain of custody.
+            </p>
+            <button class="btn-unlock" id="lockSignInBtn" type="button">
+              Sign In to Unlock Ingestion
+            </button>
+          </div>
+
+          <!-- Unlocked State Elements -->
+          <div class="drop-reticle" aria-hidden="true">
+            <span class="corner corner-tl"></span>
+            <span class="corner corner-tr"></span>
+            <span class="corner corner-bl"></span>
+            <span class="corner corner-br"></span>
+            <div class="laser-scanner"></div>
+          </div>
+
+          <div class="drop-icon-wrap" aria-hidden="true">
+            <svg class="drop-svg" viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.75">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+          </div>
+
+          <p class="drop-title">Submit Video Evidence</p>
+          <p class="drop-hint">or <button class="linkish" id="browse" type="button">select local file</button></p>
+          <p class="drop-note">
+            Accepted: MP4, MOV, AVI, MKV, WebM up to 250 MB.<br>
+            Zero-retention volatile processing in accordance with research ethics.
+          </p>
+
+          <div class="drop-demo-wrap">
+            <button class="btn-demo-quick" id="quickDemoBtn" type="button">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polygon points="10 8 16 12 10 16 10 8"></polygon>
+              </svg>
+              Load Sample Evidence Clip
+            </button>
+          </div>
+        </section>
+
+        <input type="file" id="file" accept="video/*" hidden>
+      </div>
+
+      <!-- Session Audit Log -->
+      <section class="recent" id="recentWrap" hidden>
+        <div class="recent-head">
+          <h3 class="rail-h">EXAMINER AUDIT LOG</h3>
+          <span class="recent-count" id="recentCount">0</span>
+        </div>
+        <ul class="recent-list" id="recent"></ul>
+        <p class="rail-foot">Held in active session RAM. Cleared upon session termination.</p>
+      </section>
+    </aside>
+
+    <!-- ── Right Stage: Forensic Analysis & Verdicts ──────────────── -->
+    <section class="stage" id="stage">
+
+      <!-- 1. Standby / Empty State -->
+      <div class="empty" id="empty">
+        <div class="empty-badge">LAB WORKSPACE · READY FOR ANALYSIS</div>
+        <h2 class="empty-h">Facial Manipulation Verification Module</h2>
+        <p class="empty-p">
+          Isolates facial regions across the video sequence, evaluates spatial and temporal forgery artifacts, 
+          and projects an empirical confidence margin against calibrated decision thresholds.
+        </p>
+
+        <!-- Access Banner if Logged Out -->
+        <div class="auth-gate-banner" id="authGateBanner">
+          <div class="auth-gate-icon">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#F59E0B" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          </div>
+          <div class="auth-gate-content">
+            <div class="auth-gate-title">Investigator Authentication Required</div>
+            <div class="auth-gate-sub">
+              To comply with digital evidence integrity standards, please log in with your student credentials before submitting evidence.
+            </div>
+          </div>
+          <button class="btn-hero btn-hero--primary btn-gate-login" id="bannerSignInBtn" type="button">
+            Sign In
+          </button>
+        </div>
+
+        <div class="legend-grid">
+          <div class="legend-item legend-item--real">
+            <div class="legend-dot dot--real"></div>
+            <div>
+              <div class="legend-name">Authentic (Score &lt; 0.50)</div>
+              <div class="legend-desc">No manipulation signatures identified above decision threshold.</div>
+            </div>
+          </div>
+
+          <div class="legend-item legend-item--fake">
+            <div class="legend-dot dot--fake"></div>
+            <div>
+              <div class="legend-name">Manipulated (Score &ge; 0.50)</div>
+              <div class="legend-desc">Neural face-swap, synthesis or boundary blend artifacts detected.</div>
+            </div>
+          </div>
+
+          <div class="legend-item legend-item--maybe">
+            <div class="legend-dot dot--maybe"></div>
+            <div>
+              <div class="legend-name">Inconclusive (Margin Intersects Threshold)</div>
+              <div class="legend-desc">Standard error interval overlaps 0.50. Manual expert Viva review recommended.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Working / Scanning State -->
+      <div class="working" id="working" hidden>
+        <div class="scanner-box">
+          <div class="scanner-sweep"></div>
+          <div class="scanner-grid"></div>
+          <div class="scanner-center">
+            <div class="scanner-radar"></div>
+            <div class="scanner-ping"></div>
+            <div class="scanner-readout">PROCESSING</div>
+          </div>
+        </div>
+        <div class="working-info">
+          <p class="working-step" id="workingStep">Ingesting container stream</p>
+          <p class="working-file" id="workingFile"></p>
+        </div>
+        <div class="working-progress-bar">
+          <div class="working-progress-fill" id="workingFill"></div>
+        </div>
+      </div>
+
+      <!-- 3. Result State -->
+      <article class="result" id="result" hidden>
+
+        <!-- Verdict Header Card -->
+        <div class="verdict-card" id="verdict">
+          <div class="verdict-lead">
+            <div class="verdict-status-pill" id="verdictPill">VERIFICATION RESULT</div>
+            <h2 class="verdict-word" id="verdictWord">—</h2>
+            <div class="verdict-summary-badge" id="verdictSummaryBadge">ANALYSIS COMPLETE</div>
+            <p class="verdict-file" id="verdictFile"></p>
+          </div>
+          <div class="verdict-figure">
+            <div class="fake-score-box">
+              <span class="fake-score-tag">FAKE SCORE</span>
+              <div class="verdict-num" id="verdictNum">—</div>
+              <span class="fake-score-pct" id="verdictPct">—</span>
+            </div>
+            <div class="verdict-num-label" id="verdictNumLabel">Deepfake Manipulation Score</div>
+          </div>
+        </div>
+
+        <!-- Signature Margin Gauge -->
+        <div class="panel gauge-block">
+          <div class="panel-head">
+            <div class="panel-head-title">
+              <h3>Confidence Margin Gauge</h3>
+              <span class="panel-badge">DECISION BOUNDARY: 0.50</span>
+            </div>
+            <p class="panel-sub">Illustrates the composite score along with the calculated standard error margin.</p>
+          </div>
+
+          <div class="gauge-container">
+            <div class="gauge" id="gauge">
+              <div class="gauge-track"></div>
+              <div class="gauge-band" id="gaugeBand"></div>
+              <div class="gauge-point" id="gaugePoint"></div>
+              <div class="gauge-line" id="gaugeLine"><span id="gaugeLineLabel">THRESHOLD 0.50</span></div>
+            </div>
+            <div class="gauge-scale">
+              <span>0.00 AUTHENTIC</span>
+              <span>0.50 DECISION LINE</span>
+              <span>1.00 MANIPULATED</span>
+            </div>
+          </div>
+          <p class="gauge-read" id="gaugeRead"></p>
+        </div>
+
+        <!-- Frame Strip & Temporal Plot -->
+        <section class="panel strip-panel">
+          <div class="panel-head">
+            <div class="panel-head-title">
+              <h3>Facial Track &amp; Temporal Profile</h3>
+              <span class="panel-badge" id="stripBadge">0 CROPS</span>
+            </div>
+            <p class="panel-sub" id="stripSub">Temporal frame decomposition showing isolated facial crops and per-frame synthesis scores.</p>
+          </div>
+          <div class="strip" id="strip"></div>
+          <div class="plot-wrap">
+            <div class="plot-label">TEMPORAL PROBABILITY PROFILE OVER TIME (SECONDS)</div>
+            <canvas class="plot" id="plot" height="130"></canvas>
+          </div>
+        </section>
+
+        <!-- Columns: Signals & Notes -->
+        <div class="cols">
+          <section class="panel" id="notesPanel">
+            <div class="panel-head">
+              <div class="panel-head-title">
+                <h3>Forensic Evaluation Notes</h3>
+              </div>
+            </div>
+            <ul class="notes" id="notes"></ul>
+          </section>
+
+          <section class="panel" id="featurePanel" hidden>
+            <div class="panel-head">
+              <div class="panel-head-title">
+                <h3>Spectral &amp; Spatial Signal Breakdown</h3>
+                <span class="panel-badge">HEURISTIC WEIGHTS</span>
+              </div>
+              <p class="panel-sub">Component contributions to the composite manipulation score.</p>
+            </div>
+            <ul class="features" id="features"></ul>
+          </section>
+        </div>
+
+        <!-- File Metadata & Chain of Custody -->
+        <section class="panel">
+          <div class="panel-head">
+            <div class="panel-head-title">
+              <h3>Evidence Metadata &amp; Chain of Custody</h3>
+              <span class="panel-badge">ISO/IEC 27037</span>
+            </div>
+            <p class="panel-sub">Cryptographic verification, container specifications, and messenger transcode indicators.</p>
+          </div>
+          <dl class="specs" id="specs"></dl>
+        </section>
+
+        <!-- Actions -->
+        <div class="actions">
+          <button class="btn btn--primary" id="generatePdfBtn" type="button">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+            Download PDF Forensic Report
+          </button>
+          <button class="btn btn--secondary" id="again" type="button">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="1 4 1 10 7 10"></polyline>
+              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+            </svg>
+            Examine Another File
+          </button>
+          <button class="btn btn--ghost" id="copy" type="button">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            Export JSON Data
+          </button>
+        </div>
+      </article>
+
+      <!-- 4. Failure State -->
+      <div class="failure" id="failure" hidden>
+        <div class="failure-badge">EXAMINATION ABORTED</div>
+        <p class="failure-title">Could not complete forensic pass</p>
+        <p class="failure-msg" id="failureMsg"></p>
+        <button class="btn btn--primary" id="failAgain" type="button">Try Another File</button>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- ── Methodology & Architecture Section ─────────────────────── -->
+  <section class="capabilities-section" id="capabilities">
+    <div class="capabilities-inner">
+      <div class="capabilities-head">
+        <div class="hero-tag">RESEARCH METHODOLOGY</div>
+        <h2 class="section-title">Forensic Detection Architecture</h2>
+        <p class="section-subtitle">
+          Constructed in accordance with academic specifications: MTCNN face tracking, frequency domain analysis, and zero-retention privacy.
+        </p>
+      </div>
+
+      <div class="capabilities-grid">
+        <div class="cap-card">
+          <div class="cap-icon-box">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#00F0FF" stroke-width="2">
+              <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </div>
+          <h3 class="cap-title">MTCNN Facial Alignment</h3>
+          <p class="cap-desc">
+            Detects and normalizes facial regions across video frames. Extracted crops are standardized to 224&times;224 for facial landmark and boundary consistency inspection.
+          </p>
+        </div>
+
+        <div class="cap-card">
+          <div class="cap-icon-box">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#8B5CF6" stroke-width="2">
+              <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+              <polyline points="2 17 12 22 22 17"></polyline>
+              <polyline points="2 12 12 17 22 12"></polyline>
+            </svg>
+          </div>
+          <h3 class="cap-title">2D-FFT Spectral Profiling</h3>
+          <p class="cap-desc">
+            Computes 2D Fast Fourier Transforms across face regions to isolate checkerboard and upsampling artifacts inherent to generative convolutional synthesis models.
+          </p>
+        </div>
+
+        <div class="cap-card">
+          <div class="cap-icon-box">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#10B981" stroke-width="2">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+            </svg>
+          </div>
+          <h3 class="cap-title">Temporal Motion Coherence</h3>
+          <p class="cap-desc">
+            Monitors inter-frame optical flow vectors and boundary stability across sequential frames to detect temporal flickering and unnatural landmark variance.
+          </p>
+        </div>
+
+        <div class="cap-card">
+          <div class="cap-icon-box">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#F59E0B" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          </div>
+          <h3 class="cap-title">Zero-Retention Privacy (ISO 27037)</h3>
+          <p class="cap-desc">
+            Submitted media is buffered exclusively in temporary RAM for feature extraction and immediately unlinked upon scoring, ensuring zero disk retention.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Academic Footer ────────────────────────────────────────── -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <img src="/static/logo.svg" alt="Deepfake Forensics Logo" width="28" height="28">
+        <span>DEEPFAKE FORENSICS &bull; BSc (Hons) Cybersecurity &amp; Digital Forensics</span>
+      </div>
+      <div class="footer-note">
+        Academic Capstone Project. Adheres to ISO/IEC 27037 Digital Evidence Handling &amp; Ethics Standards.
+      </div>
+      <div class="footer-links">
+        <a href="#hero">Back to Top &uarr;</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ── Student / Examiner Authentication Modal ────────────────── -->
+  <div class="modal-backdrop" id="authModal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+      
+      <button class="modal-close" id="closeAuthBtn" type="button" aria-label="Close modal">&times;</button>
+
+      <div class="modal-header">
+        <div class="modal-logo-wrap">
+          <img src="/static/logo.svg" alt="Deepfake Forensics Emblem" width="44" height="44">
+        </div>
+        <h3 class="modal-title" id="authTitle">Cybersecurity Lab Authentication</h3>
+        <p class="modal-subtitle">Digital Forensics Laboratory &bull; Faculty of Computing</p>
+      </div>
+
+      <!-- Tabs: Sign In / Create Account -->
+      <div class="auth-tabs" role="tablist">
+        <button class="auth-tab is-active" id="tabSignIn" role="tab" aria-selected="true" type="button">Sign In</button>
+        <button class="auth-tab" id="tabSignUp" role="tab" aria-selected="false" type="button">Create Account</button>
+      </div>
+
+      <div class="auth-alert" id="authAlert" hidden></div>
+
+      <!-- Sign In Form -->
+      <form class="auth-form" id="signInForm">
+        <div class="form-group">
+          <label for="loginEmail" class="form-label">Email or Student ID</label>
+          <input type="text" id="loginEmail" class="form-input" placeholder="student@university.edu or CYB-..." required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="loginPassword" class="form-label">Password</label>
+          <input type="password" id="loginPassword" class="form-input" placeholder="••••••••••••" required autocomplete="current-password">
+        </div>
+        <div class="form-footer-row">
+          <label class="form-check">
+            <input type="checkbox" id="rememberMe" checked>
+            <span>Remember clearance</span>
+          </label>
+          <button type="button" class="form-link" id="switchSignUpLink">Need an account? Create Account</button>
+        </div>
+        <button type="submit" class="btn-submit-auth">Sign In</button>
+      </form>
+
+      <!-- Create Account Form -->
+      <form class="auth-form" id="signUpForm" hidden>
+        <div class="form-group">
+          <label for="regName" class="form-label">Full Name</label>
+          <input type="text" id="regName" class="form-input" placeholder="e.g. Sailess Raj" required>
+        </div>
+        <div class="form-group">
+          <label for="regStudentId" class="form-label">Student / Staff ID</label>
+          <input type="text" id="regStudentId" class="form-input" placeholder="e.g. CYB-2026-9481" required>
+        </div>
+        <div class="form-group">
+          <label for="regEmail" class="form-label">University Email</label>
+          <input type="email" id="regEmail" class="form-input" placeholder="student@university.edu" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="regRole" class="form-label">Academic Role</label>
+          <select id="regRole" class="form-select">
+            <option value="BSc Cybersecurity Student (Final Year)">BSc Cybersecurity Student (Final Year)</option>
+            <option value="Digital Forensics Researcher">Digital Forensics Researcher</option>
+            <option value="Project Supervisor / Examiner">Project Supervisor / Examiner</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="regPassword" class="form-label">Create Password</label>
+          <input type="password" id="regPassword" class="form-input" placeholder="Minimum 4 characters" required autocomplete="new-password">
+        </div>
+        <button type="submit" class="btn-submit-auth">Create Account</button>
+      </form>
+
+      <div class="modal-notice">
+        Session access is logged locally to maintain evidence chain of custody (ISO/IEC 27037).
+      </div>
+    </div>
+  </div>
+
+  <!-- PDF Report Preview & Export Modal -->
+  <div class="pdf-modal-overlay" id="pdfModal" hidden>
+    <div class="pdf-modal-toolbar">
+      <div class="pdf-modal-toolbar-title">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10 9 9 9 8 9"></polyline>
+        </svg>
+        <span>Official Forensic Report Preview &bull; ISO/IEC 27037</span>
+      </div>
+      <div class="pdf-modal-toolbar-actions">
+        <button type="button" class="btn btn-pdf-action btn-pdf-download" id="pdfDownloadBtn">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Download PDF File
+        </button>
+        <button type="button" class="btn btn-pdf-action btn-pdf-print" id="pdfPrintBtn">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 6 2 18 2 18 9"></polyline>
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+            <rect x="6" y="14" width="12" height="8"></rect>
+          </svg>
+          Print / Save as PDF
+        </button>
+        <button type="button" class="btn-pdf-close" id="closePdfModalBtn" title="Close Preview">&times;</button>
+      </div>
+    </div>
+    <div class="pdf-modal-scroll" id="pdfModalScroll">
+      <div class="pdf-paper-sheet" id="pdfPaperSheet">
+        <!-- Dynamically injected report -->
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/html2pdf.bundle.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
