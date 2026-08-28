@@ -825,6 +825,16 @@ function drawSpecs(d) {
     ['Inference Engine', d.engine === 'model' ? `deep network (${d.backbone})` : 'classical baseline (OpenCV + FFT)'],
   ];
 
+  const aud = d.audio || {};
+  const lip = aud.lipsync || {};
+  const voice = aud.voice || {};
+
+  if (aud.available) {
+    rows.push(['Multimodal Audio-Visual State', 'ACTIVE (FFmpeg Engine)']);
+    rows.push(['Lip-Sync Alignment', lip.reading ? `${lip.reading.toUpperCase()} (correlation r: ${lip.score !== undefined ? Number(lip.score).toFixed(2) : '—'})` : 'analyzed']);
+    rows.push(['Voice Synthesis Indication', voice.synthetic_indicators ? 'DETECTED (Acoustic Flatness)' : 'NATURAL SPEECH ACOUSTICS']);
+  }
+
   const flags = [
     ['Messenger Filename Pattern', p.whatsapp_filename || p.telegram_filename],
     ['Stripped Container Metadata', p.stripped_metadata],
@@ -832,6 +842,10 @@ function drawSpecs(d) {
     ['Capped Transcode Resolution', p.capped_resolution],
     ['Recompression Flag (≥2 heuristics)', p.likely_recompressed],
   ];
+
+  if (aud.available && lip.reading === 'mismatched') {
+    flags.push(['Audio-Visual Lip-Sync Mismatch', true]);
+  }
 
   el.specs.innerHTML = '';
   for (const [k, v, customClass] of rows) {
