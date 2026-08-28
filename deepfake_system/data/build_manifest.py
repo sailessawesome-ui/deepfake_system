@@ -41,11 +41,24 @@ FAKE_METHODS = (
     "wav2lip", "sadtalker", "mraa", "fomm", "tpsm", "styleheat",
     "sd15", "sdxl", "ddim", "ddpm", "stargan", "stylegan", "collab",
     "vqgan", "pixart", "midjourney", "heygen", "hyperreenact",
+    # DF40 spellings. "inswap" is the folder name; the "inswapper" token
+    # above is checked first so archives using the longer name keep it.
+    # "dit_" is anchored to the underscore because a bare "dit" would also
+    # match words like "condition" and "editing" elsewhere in a path.
+    "collabdiff", "deepfacelab", "inswap", "dit_",
     # Singular. Some FF++ redistributions name the folder "deepfake", which
     # the plural token above does not match. Kept last so archives using
     # "deepfakes" still report under that name.
     "deepfake",
 )
+
+# Path components that state the label outright. These outrank any generator
+# name found in the path: DF40 stores each generator's source clips under
+# real/<generator>_<id>/, so matching the generator first would relabel every
+# one of those real videos as fake.
+REAL_DIRS = {"real", "original", "originals", "pristine", "authentic",
+             "youtube", "actors", "genuine"}
+FAKE_DIRS = {"fake", "manipulated", "synthesis", "synth", "generated"}
 
 
 def _norm(p: Path) -> str:
@@ -53,11 +66,24 @@ def _norm(p: Path) -> str:
 
 
 def infer_label(path: Path) -> tuple[int, str]:
-    """Return (label, method). label 1 = fake, 0 = real."""
+    """Return (label, method). label 1 = fake, 0 = real.
+
+    A real/ or fake/ directory component decides the label; the generator
+    name only names the method. Substring matching alone gets this wrong on
+    DF40, where real clips live at real/<generator>_<id>/.
+    """
     s = _norm(path)
-    for m in FAKE_METHODS:
-        if m in s:
-            return 1, m
+    parts = set(s.split("/"))
+    method = next((m for m in FAKE_METHODS if m in s), None)
+
+    if parts & REAL_DIRS:
+        return 0, "real"
+    if parts & FAKE_DIRS:
+        return 1, method or "unknown_fake"
+
+    # No explicit directory - fall back to substring order.
+    if method:
+        return 1, method
     for t in REAL_TOKENS:
         if t in s:
             return 0, "real"

@@ -39,7 +39,14 @@ class DataConfig:
     # Datasets held out entirely for the "unseen source" report.
     holdout_sources: tuple = ("wild",)
     # DF40 generator families held out to measure unseen-generator behaviour.
-    holdout_methods: tuple = ("simswap", "e4s", "sd15", "sdxl", "danet")
+    # Families actually present in this DF40 archive: inswap (600),
+    # dit_ (600), deepfacelab (585), collabdiff (250). CollabDiff is held
+    # out because it is the smallest, so the unseen-generator probe costs
+    # the least training data - and DiT stays in, keeping the diffusion
+    # coverage that DF40 was added for.
+    # NB: matches the method name build_manifest records, which is
+    # "collab" - that token is checked before "collabdiff".
+    holdout_methods: tuple = ("collab",)
 
 
 @dataclass
