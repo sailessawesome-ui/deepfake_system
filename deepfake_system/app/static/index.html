@@ -399,6 +399,55 @@
           </section>
         </div>
 
+        <!-- Multimodal Lip-Sync & Audio Forensics Panel -->
+        <section class="panel audio-panel" id="audioPanel">
+          <div class="panel-head">
+            <div class="panel-head-title">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--cyber-cyan)" stroke-width="2" style="margin-right: 6px; vertical-align: -3px;">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+              </svg>
+              <h3 style="display:inline-block;">Multimodal Lip-Sync &amp; Audio Forensics</h3>
+              <span class="panel-badge" id="audioBadge">ACTIVE · FFMPEG</span>
+            </div>
+            <p class="panel-sub">Evaluates mouth-to-audio phonetic synchronization, voice cloning indicators, and speech envelope alignment.</p>
+          </div>
+
+          <div class="audio-grid">
+            <div class="audio-card">
+              <div class="audio-card-head">
+                <span class="audio-card-label">LIP-SYNC SYNCHRONIZATION</span>
+                <span class="audio-badge" id="audioLipPill">ANALYZED</span>
+              </div>
+              <div class="audio-card-val" id="audioLipStatus">SYNCHRONIZED</div>
+              <div class="audio-card-meta" id="audioLipScore">Audio-Visual Correlation: <strong>r = 0.85</strong></div>
+              <div class="audio-meter">
+                <div class="audio-meter-bar" id="audioLipBar" style="width: 85%;"></div>
+              </div>
+            </div>
+
+            <div class="audio-card">
+              <div class="audio-card-head">
+                <span class="audio-card-label">VOICE CLONING (AI VOCODER)</span>
+                <span class="audio-badge" id="audioVoicePill">NATURAL</span>
+              </div>
+              <div class="audio-card-val" id="audioVoiceStatus">AUTHENTIC ACOUSTICS</div>
+              <div class="audio-card-meta" id="audioVoiceMeta">Spectral Flatness: Normal noise floor</div>
+            </div>
+
+            <div class="audio-card">
+              <div class="audio-card-head">
+                <span class="audio-card-label">AUDIO-VISUAL LAG OFFSET</span>
+                <span class="audio-badge" id="audioLagPill">ALIGNED</span>
+              </div>
+              <div class="audio-card-val" id="audioLagStatus">0.0 s LAG</div>
+              <div class="audio-card-meta" id="audioLagMeta">Optimal search window: &plusmn;0.40s</div>
+            </div>
+          </div>
+        </section>
+
         <!-- File Metadata & Chain of Custody -->
         <section class="panel">
           <div class="panel-head">

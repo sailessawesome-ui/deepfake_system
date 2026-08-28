@@ -617,6 +617,7 @@ function render(d) {
   drawGauge(d, v.cls);
   drawStrip(d);
   drawPlot(d);
+  drawAudio(d);
   drawNotes(d);
   drawFeatures(d);
   drawSpecs(d);
@@ -764,6 +765,91 @@ function drawPlot(d) {
     g.lineWidth = 1.5;
     g.stroke();
   });
+function drawAudio(d) {
+  const panel = document.getElementById('audioPanel');
+  if (!panel) return;
+  const aud = d.audio || {};
+  const lip = aud.lipsync || {};
+  const voice = aud.voice || {};
+
+  const lipStatus = document.getElementById('audioLipStatus');
+  const lipScore = document.getElementById('audioLipScore');
+  const lipPill = document.getElementById('audioLipPill');
+  const lipBar = document.getElementById('audioLipBar');
+  const voiceStatus = document.getElementById('audioVoiceStatus');
+  const voiceMeta = document.getElementById('audioVoiceMeta');
+  const voicePill = document.getElementById('audioVoicePill');
+  const lagStatus = document.getElementById('audioLagStatus');
+  const lagPill = document.getElementById('audioLagPill');
+  const badge = document.getElementById('audioBadge');
+
+  if (!aud.available) {
+    if (badge) {
+      badge.textContent = 'NO AUDIO STREAM';
+      badge.className = 'panel-badge';
+    }
+    if (lipStatus) lipStatus.textContent = 'NO AUDIO TRACK';
+    if (lipScore) lipScore.textContent = 'Audio track missing or not decodable.';
+    if (lipPill) { lipPill.textContent = 'STANDBY'; lipPill.className = 'audio-badge'; }
+    if (lipBar) lipBar.style.width = '0%';
+    if (voiceStatus) voiceStatus.textContent = 'NO AUDIO DETECTED';
+    if (voiceMeta) voiceMeta.textContent = 'FFmpeg could not isolate audio stream.';
+    if (voicePill) { voicePill.textContent = 'N/A'; voicePill.className = 'audio-badge'; }
+    if (lagStatus) lagStatus.textContent = '—';
+    if (lagPill) { lagPill.textContent = 'N/A'; lagPill.className = 'audio-badge'; }
+    return;
+  }
+
+  if (badge) {
+    badge.textContent = 'ACTIVE · MULTIMODAL';
+    badge.className = 'panel-badge panel-badge--live';
+  }
+
+  // 1. Lip-Sync
+  const r = lip.score !== undefined ? Number(lip.score) : 0;
+  const rPct = Math.max(0, Math.min(100, Math.round(r * 100)));
+  const reading = (lip.reading || 'analyzed').toLowerCase();
+
+  if (reading === 'mismatched') {
+    if (lipStatus) lipStatus.textContent = 'DESYNCHRONIZED (DUB / SWAP)';
+    if (lipScore) lipScore.innerHTML = `Audio-Visual Correlation: <strong style="color:var(--status-fake)">r = ${r.toFixed(2)} (MISMATCH)</strong>`;
+    if (lipPill) { lipPill.textContent = 'MISMATCH'; lipPill.className = 'audio-badge audio-badge--danger'; }
+    if (lipBar) { lipBar.style.width = '20%'; lipBar.className = 'audio-meter-bar audio-meter-bar--danger'; }
+  } else if (reading === 'tight') {
+    if (lipStatus) lipStatus.textContent = 'TIGHT SYNCHRONIZATION';
+    if (lipScore) lipScore.innerHTML = `Audio-Visual Correlation: <strong>r = ${r.toFixed(2)}</strong> (Generated / Aligned)`;
+    if (lipPill) { lipPill.textContent = 'TIGHT MATCH'; lipPill.className = 'audio-badge audio-badge--warn'; }
+    if (lipBar) { lipBar.style.width = `${Math.max(50, rPct)}%`; lipBar.className = 'audio-meter-bar audio-meter-bar--warn'; }
+  } else {
+    if (lipStatus) lipStatus.textContent = 'NATURAL LIP-SYNC';
+    if (lipScore) lipScore.innerHTML = `Audio-Visual Correlation: <strong>r = ${r.toFixed(2)}</strong> (Speech tracks mouth)`;
+    if (lipPill) { lipPill.textContent = 'SYNCHRONIZED'; lipPill.className = 'audio-badge audio-badge--ok'; }
+    if (lipBar) { lipBar.style.width = `${Math.max(40, rPct)}%`; lipBar.className = 'audio-meter-bar'; }
+  }
+
+  // 2. Voice Cloning
+  if (voice.synthetic_indicators) {
+    if (voiceStatus) voiceStatus.textContent = 'SYNTHETIC SPEECH / VOCODER';
+    if (voiceMeta) voiceMeta.textContent = `Acoustic Flatness: High-band flat spectral envelope (${(voice.spectral_flatness_high || 0).toFixed(2)})`;
+    if (voicePill) { voicePill.textContent = 'SYNTHETIC DETECTED'; voicePill.className = 'audio-badge audio-badge--danger'; }
+  } else {
+    if (voiceStatus) voiceStatus.textContent = 'NATURAL ACOUSTIC SPEECH';
+    if (voiceMeta) voiceMeta.textContent = 'Natural vocal tract resonances & acoustic noise floor.';
+    if (voicePill) { voicePill.textContent = 'AUTHENTIC'; voicePill.className = 'audio-badge audio-badge--ok'; }
+  }
+
+  // 3. Lag Offset
+  const lag = lip.optimal_lag_s !== undefined ? Number(lip.optimal_lag_s) : 0;
+  if (lagStatus) lagStatus.textContent = `${lag >= 0 ? '+' : ''}${lag.toFixed(2)} s LAG`;
+  if (lagPill) {
+    if (Math.abs(lag) > 0.25) {
+      lagPill.textContent = 'TIME DRIFT';
+      lagPill.className = 'audio-badge audio-badge--warn';
+    } else {
+      lagPill.textContent = 'PHONETIC LOCK';
+      lagPill.className = 'audio-badge audio-badge--ok';
+    }
+  }
 }
 
 function drawNotes(d) {

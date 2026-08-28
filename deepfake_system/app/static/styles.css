@@ -1373,6 +1373,99 @@ button { font: inherit; color: inherit; }
   .footer-inner { flex-direction: column; text-align: center; }
 }
 
+/* ── Multimodal Audio & Lip-Sync Panel ───────────────────────── */
+.audio-panel {
+  margin-top: 24px;
+}
+.audio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+}
+.audio-card {
+  background: var(--bg-card);
+  border: 1px solid var(--line-cyber);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+.audio-card:hover {
+  border-color: var(--cyber-cyan);
+  box-shadow: 0 4px 20px rgba(0, 240, 255, 0.08);
+}
+.audio-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.audio-card-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+}
+.audio-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: rgba(0, 240, 255, 0.12);
+  color: var(--cyber-cyan);
+  border: 1px solid rgba(0, 240, 255, 0.25);
+  font-weight: 600;
+}
+.audio-badge--warn {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--status-maybe);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+.audio-badge--danger {
+  background: rgba(255, 0, 85, 0.15);
+  color: var(--status-fake);
+  border-color: rgba(255, 0, 85, 0.35);
+}
+.audio-badge--ok {
+  background: rgba(0, 255, 170, 0.15);
+  color: var(--status-real);
+  border-color: rgba(0, 255, 170, 0.35);
+}
+.audio-card-val {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink-pure);
+  letter-spacing: -0.01em;
+}
+.audio-card-meta {
+  font-size: 12px;
+  color: var(--ink-mid);
+  line-height: 1.4;
+}
+.audio-meter {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.audio-meter-bar {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--status-real), var(--cyber-cyan));
+  transition: width 0.4s ease;
+}
+.audio-meter-bar--warn {
+  background: linear-gradient(90deg, var(--status-maybe), #F59E0B);
+}
+.audio-meter-bar--danger {
+  background: linear-gradient(90deg, var(--status-fake), #FF0055);
+}
+
 /* ── Print Media Optimization ────────────────────────────────── */
 @media print {
   body * {
@@ -1398,3 +1491,4 @@ button { font: inherit; color: inherit; }
     display: none !important;
   }
 }
+
