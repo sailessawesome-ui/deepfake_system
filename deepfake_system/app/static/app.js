@@ -733,15 +733,34 @@ function drawPlot(d) {
 
   if (!scores.length) return;
 
-  // Decision Threshold guide
+  // Decision Threshold guide (Cyan dashed)
   g.setLineDash([4, 4]); g.strokeStyle = '#00F0FF'; g.lineWidth = 1.2;
   g.beginPath(); g.moveTo(pad.l, y(d.threshold)); g.lineTo(w - pad.r, y(d.threshold));
-  g.stroke(); g.setLineDash([]);
+  g.stroke();
+
+  // Composite Score Level (Pink/Red dashed if fake)
+  if (d.probability !== null && Math.abs(d.probability - d.threshold) > 0.05) {
+    g.setLineDash([2, 4]);
+    g.strokeStyle = d.probability >= d.threshold ? 'rgba(255, 0, 85, 0.7)' : 'rgba(0, 255, 170, 0.7)';
+    g.lineWidth = 1.2;
+    g.beginPath(); g.moveTo(pad.l, y(d.probability)); g.lineTo(w - pad.r, y(d.probability));
+    g.stroke();
+    g.fillStyle = d.probability >= d.threshold ? '#FF0055' : '#00FFAA';
+    g.font = '9px "JetBrains Mono", monospace';
+    g.fillText(`Composite ${(d.probability * 100).toFixed(0)}%`, w - pad.r - 80, y(d.probability) - 4);
+  }
+  g.setLineDash([]);
 
   // Area under curve
   const grad = g.createLinearGradient(0, pad.t, 0, pad.t + ih);
-  grad.addColorStop(0, 'rgba(244, 63, 94, 0.35)');
-  grad.addColorStop(1, 'rgba(16, 185, 129, 0.05)');
+  const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+  if (avg >= d.threshold) {
+    grad.addColorStop(0, 'rgba(255, 0, 85, 0.45)');
+    grad.addColorStop(1, 'rgba(245, 158, 11, 0.08)');
+  } else {
+    grad.addColorStop(0, 'rgba(0, 240, 255, 0.35)');
+    grad.addColorStop(1, 'rgba(16, 185, 129, 0.05)');
+  }
   g.beginPath();
   g.moveTo(x(0), y(0));
   scores.forEach((s, i) => g.lineTo(x(i), y(s)));
@@ -751,7 +770,6 @@ function drawPlot(d) {
   // Primary curve line
   g.beginPath();
   scores.forEach((s, i) => (i ? g.lineTo(x(i), y(s)) : g.moveTo(x(i), y(s))));
-  const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
   g.strokeStyle = tint(avg);
   g.lineWidth = 2.5; g.lineJoin = 'round'; g.stroke();
 

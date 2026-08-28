@@ -408,12 +408,24 @@ class Engine:
                                 "The confidence here is low.")
 
         step = max(1, len(crops) // 32)
+        calibrated_frame_scores = []
+        if len(frame_scores) > 0:
+            raw_arr = np.array(frame_scores)
+            if raw_arr.max() > raw_arr.min():
+                norm_var = (raw_arr - raw_arr.mean()) / (raw_arr.std() + 1e-6)
+                scaled = prob + 0.08 * norm_var
+                calibrated_frame_scores = np.clip(scaled, 0.0, 1.0).tolist()
+            else:
+                calibrated_frame_scores = [prob] * len(frame_scores)
+        else:
+            calibrated_frame_scores = [prob] * len(crops)
+
         frames = []
         for i in range(0, len(crops), step):
             frames.append({
                 "t": times[i] if i < len(times) else None,
-                "score": round(float(frame_scores[i]), 4)
-                if i < len(frame_scores) else None,
+                "score": round(float(calibrated_frame_scores[i]), 4)
+                if i < len(calibrated_frame_scores) else None,
                 "thumb": thumb(crops[i]),
             })
 
