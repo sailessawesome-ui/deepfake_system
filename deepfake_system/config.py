@@ -3,6 +3,12 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+# Where a trained run lives when the app is served. Defaults to runs/v1
+# next to this file so a checkpoint copied there is found on any machine;
+# override with DEEPFAKE_RUNS when the run directory is elsewhere.
+_RUNS = Path(os.environ.get("DEEPFAKE_RUNS",
+                            Path(__file__).resolve().parent / "runs" / "v1"))
+
 
 @dataclass
 class DataConfig:
@@ -121,8 +127,8 @@ class InferConfig:
     aggregation: str = "trimmed_mean"
     trim_fraction: float = 0.2
     # Decision threshold and temperature are written by evaluate.py.
-    calibration_file: Path = Path("/content/runs/v1/calibration.json")
-    checkpoint: Path = Path("/content/runs/v1/best.pt")
+    calibration_file: Path = _RUNS / "calibration.json"
+    checkpoint: Path = _RUNS / "best.pt"
     min_face_conf: float = 0.9
 
     # IR 3.4.1 UI/UX: "a definite Real or Fake tag". The system defaults

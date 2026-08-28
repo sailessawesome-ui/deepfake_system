@@ -208,6 +208,8 @@ class Engine:
     def _load(self, path):
         p = Path(path)
         if not p.exists():
+            print(f"[engine] no checkpoint at {p} - using the classical "
+                  f"baseline. Copy best.pt there, or set DEEPFAKE_RUNS.")
             return
         try:
             import torch
