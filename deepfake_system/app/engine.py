@@ -320,9 +320,15 @@ class Engine:
         if self.mode == "model":
             logits, frame_scores = self._model_scores(crops)
             probs = np.sort(1 / (1 + np.exp(-logits)))
-            cut = int(len(probs) * INFER.trim_fraction)
-            core = probs[cut:len(probs) - cut] if len(probs) - 2 * cut > 0 else probs
-            prob = float(core.mean())
+            if INFER.aggregation == "topk":
+                k = max(1, int(len(probs) * INFER.trim_fraction))
+                prob = float(probs[-k:].mean())
+            elif INFER.aggregation == "mean" or len(probs) < 4:
+                prob = float(probs.mean())
+            else:
+                cut = int(len(probs) * INFER.trim_fraction)
+                core = probs[cut:len(probs) - cut] if len(probs) - 2 * cut > 0 else probs
+                prob = float(core.mean())
             spread = float(probs.std())
             clips_scored = len(logits)
         else:

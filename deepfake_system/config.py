@@ -136,9 +136,9 @@ class InferConfig:
     # Training already flips clips at random, so the model is flip-invariant
     # by construction and this is pure variance reduction. Costs 2x inference.
     tta: bool = True
-    # Aggregation across clips: "trimmed_mean" | "mean" | "topk"
-    aggregation: str = "trimmed_mean"
-    trim_fraction: float = 0.2
+    # Aggregation across clips: "topk" | "trimmed_mean" | "mean"
+    aggregation: str = "topk"
+    trim_fraction: float = 0.25
     # Decision threshold and temperature are written by evaluate.py.
     calibration_file: Path = _RUNS / "calibration.json"
     checkpoint: Path = _RUNS / "best.pt"
