@@ -765,6 +765,8 @@ function drawPlot(d) {
     g.lineWidth = 1.5;
     g.stroke();
   });
+}
+
 function drawAudio(d) {
   const panel = document.getElementById('audioPanel');
   if (!panel) return;
