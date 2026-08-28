@@ -42,8 +42,15 @@ class DataConfig:
     test_ratio: float = 0.13
     seed: int = 1337
 
-    # Datasets held out entirely for the "unseen source" report.
-    holdout_sources: tuple = ("wild",)
+    # Sources held out entirely from training.
+    #
+    # Run A kept "wild" here, which is where the unseen-source number
+    # (69.4% acc, AUC 0.778) comes from - that measurement is banked and
+    # belongs to that checkpoint. The deployed model splits wild normally
+    # instead: held-out data is reserved for measurement, not permanently
+    # excluded from the product. Its test slice (~105 videos) still gives a
+    # real in-the-wild number for the shipped model.
+    holdout_sources: tuple = ()
     # DF40 generator families held out to measure unseen-generator behaviour.
     # Families actually present in this DF40 archive: inswap (600),
     # dit_ (600), deepfacelab (585), collabdiff (250). CollabDiff is held
@@ -121,8 +128,14 @@ class StoreConfig:
 
 @dataclass
 class InferConfig:
-    # Clips sampled per video at inference.
-    clips_per_video: int = 12
+    # Clips sampled per video at inference. More clips means a steadier
+    # video-level score once the trimmed mean drops the extremes.
+    clips_per_video: int = 16
+
+    # Score each clip twice - as-is and horizontally mirrored - and average.
+    # Training already flips clips at random, so the model is flip-invariant
+    # by construction and this is pure variance reduction. Costs 2x inference.
+    tta: bool = True
     # Aggregation across clips: "trimmed_mean" | "mean" | "topk"
     aggregation: str = "trimmed_mean"
     trim_fraction: float = 0.2

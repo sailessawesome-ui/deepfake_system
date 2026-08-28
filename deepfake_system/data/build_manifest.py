@@ -197,12 +197,16 @@ def assign_splits(rows, use_path_splits=True):
             continue
         if path_split_ok[source]:
             continue                      # handled per-row below
-        ids = sorted(ids)
+        # Deduplicate by identity before assigning. An identity that owns
+        # both real and fake clips (FF++ target 008; DF40's real/<gen>_<id>
+        # counterparts) otherwise gets written twice and the later write
+        # wins, pushing most identities into train and skewing the ratios.
+        ids = sorted({ident for ident, _ in ids})
         rng.shuffle(ids)
         n = len(ids)
         n_val = max(1, int(n * DATA.val_ratio))
         n_test = max(1, int(n * DATA.test_ratio))
-        for j, (ident, _) in enumerate(ids):
+        for j, ident in enumerate(ids):
             if j < n_val:
                 s = "val"
             elif j < n_val + n_test:

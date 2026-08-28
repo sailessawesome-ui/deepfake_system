@@ -138,6 +138,10 @@ def collect(model, videos, device, degrade_prob, clips_per_video, tag):
         x = batch["clean"].to(device)
         with torch.autocast("cuda", enabled=torch.cuda.is_available()):
             logit, _ = model(x)
+            if INFER.tta:
+                # Same averaging the app does, so reported numbers describe
+                # the deployed behaviour rather than a different pipeline.
+                logit = 0.5 * (logit + model(torch.flip(x, dims=[-1]))[0])
         logit = logit.float().cpu().numpy()
         prob = 1 / (1 + np.exp(-logit))
         for j, vid in enumerate(batch["video_id"]):

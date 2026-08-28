@@ -273,6 +273,11 @@ class Engine:
                 x = torch.from_numpy(clip).permute(0, 3, 1, 2).unsqueeze(0)
                 x = x.to(self.device)
                 logit, frame_logit = self.model(x)
+                if INFER.tta:
+                    # Mirror the clip and average. The width axis is last.
+                    logit_f, frame_f = self.model(torch.flip(x, dims=[-1]))
+                    logit = 0.5 * (logit + logit_f)
+                    frame_logit = 0.5 * (frame_logit + frame_f)
                 logits.append(float(logit.item()) / self.temperature)
                 fs = torch.sigmoid(frame_logit[0].float()).cpu().numpy()
                 frame_scores[s:s + T] += fs
