@@ -806,7 +806,7 @@ function drawAudio(d) {
   }
 
   // 1. Lip-Sync
-  const r = lip.score !== undefined ? Number(lip.score) : 0;
+  const r = lip.correlation !== undefined ? Number(lip.correlation) : (lip.score !== undefined ? Number(lip.score) : 0);
   const rPct = Math.max(0, Math.min(100, Math.round(r * 100)));
   const reading = (lip.reading || 'analyzed').toLowerCase();
 
@@ -828,9 +828,12 @@ function drawAudio(d) {
   }
 
   // 2. Voice Cloning
-  if (voice.synthetic_indicators) {
+  const isSynth = voice.synthetic_indicators || (voice.synthetic_indicator !== undefined && voice.synthetic_indicator >= 0.55) || (voice.high_band_flatness !== undefined && voice.high_band_flatness >= 0.65);
+  const flatness = voice.high_band_flatness !== undefined ? Number(voice.high_band_flatness) : (voice.spectral_flatness_high || 0);
+
+  if (isSynth) {
     if (voiceStatus) voiceStatus.textContent = 'SYNTHETIC SPEECH / VOCODER';
-    if (voiceMeta) voiceMeta.textContent = `Acoustic Flatness: High-band flat spectral envelope (${(voice.spectral_flatness_high || 0).toFixed(2)})`;
+    if (voiceMeta) voiceMeta.textContent = `Acoustic Flatness: High-band flat spectral envelope (${flatness.toFixed(2)})`;
     if (voicePill) { voicePill.textContent = 'SYNTHETIC DETECTED'; voicePill.className = 'audio-badge audio-badge--danger'; }
   } else {
     if (voiceStatus) voiceStatus.textContent = 'NATURAL ACOUSTIC SPEECH';
@@ -839,10 +842,10 @@ function drawAudio(d) {
   }
 
   // 3. Lag Offset
-  const lag = lip.optimal_lag_s !== undefined ? Number(lip.optimal_lag_s) : 0;
+  const lag = lip.lag_seconds !== undefined ? Number(lip.lag_seconds) : (lip.optimal_lag_s !== undefined ? Number(lip.optimal_lag_s) : 0);
   if (lagStatus) lagStatus.textContent = `${lag >= 0 ? '+' : ''}${lag.toFixed(2)} s LAG`;
   if (lagPill) {
-    if (Math.abs(lag) > 0.25) {
+    if (Math.abs(lag) > 0.40) {
       lagPill.textContent = 'TIME DRIFT';
       lagPill.className = 'audio-badge audio-badge--warn';
     } else {
