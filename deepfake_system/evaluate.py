@@ -49,8 +49,13 @@ def metrics(y, p, thr):
     prec = tp / max(1, tp + fp)
     rec = tp / max(1, tp + fn)
     f1 = 2 * prec * rec / max(1e-9, prec + rec)
+    # Specificity and FPR make the false-positive cost visible. Precision
+    # hides it whenever a split is mostly fake, and every split here is.
+    spec = tn / max(1, tn + fp)
     out = {"n": len(y), "acc": float((pred == y).mean()), "f1": float(f1),
            "precision": float(prec), "recall": float(rec),
+           "specificity": float(spec), "fpr": float(1.0 - spec),
+           "balanced_acc": float(0.5 * (rec + spec)),
            "tp": tp, "tn": tn, "fp": fp, "fn": fn}
     if len(set(y.tolist())) > 1:
         from sklearn.metrics import roc_auc_score
@@ -58,10 +63,51 @@ def metrics(y, p, thr):
     return out
 
 
-def best_threshold(y, p):
+def best_threshold(y, p, criterion="youden"):
+    """Pick a decision threshold on validation.
+
+    "f1"     maximises F1. On a split that is ~85% fake this rewards
+             catching fakes and barely penalises false alarms, so it drives
+             the threshold down and the false-positive rate up.
+    "youden" maximises TPR - FPR, weighting a false alarm the same as a
+             miss. This is what a tool claiming "high detection rate AND
+             low false positives" should use.
+    "target_fpr" is the strictest: the lowest threshold whose validation
+             FPR stays within TARGET_FPR.
+    """
     grid = np.linspace(0.05, 0.95, 181)
-    scores = [metrics(y, p, t)["f1"] for t in grid]
+    rows = [(t, metrics(y, p, t)) for t in grid]
+
+    if criterion == "f1":
+        scores = [m["f1"] for _, m in rows]
+    elif criterion == "target_fpr":
+        ok = [(t, m) for t, m in rows if m["fpr"] <= TARGET_FPR]
+        if ok:
+            # Best recall inside the false-alarm budget; when recall ties,
+            # take the threshold that raises fewer false alarms rather than
+            # spending budget that buys nothing.
+            return float(max(ok, key=lambda tm: (tm[1]["recall"],
+                                                 -tm[1]["fpr"]))[0])
+        scores = [-m["fpr"] for _, m in rows]
+    else:                                    # youden
+        scores = [m["recall"] - m["fpr"] for _, m in rows]
+
     return float(grid[int(np.argmax(scores))])
+
+
+TARGET_FPR = 0.05
+
+
+def threshold_report(y, p):
+    """What each criterion would cost, so the choice is visible."""
+    lines = []
+    for name in ("f1", "youden", "target_fpr"):
+        t = best_threshold(y, p, name)
+        m = metrics(y, p, t)
+        lines.append(f"  {name:11s} thr {t:.3f}  f1 {m['f1']:.4f}  "
+                     f"recall {m['recall']:.4f}  fpr {m['fpr']:.4f}  "
+                     f"bal_acc {m['balanced_acc']:.4f}")
+    return "\n".join(lines)
 
 
 def fit_temperature(y, logits):
@@ -114,6 +160,11 @@ def main():
     ap.add_argument("--split", default="test")
     ap.add_argument("--clips", type=int, default=INFER.clips_per_video)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--threshold-criterion", default="youden",
+                    choices=["youden", "f1", "target_fpr"],
+                    help="how the decision threshold is chosen on val. "
+                         "youden balances misses against false alarms; f1 "
+                         "is the old behaviour and inflates the FPR.")
     args = ap.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -134,8 +185,11 @@ def main():
     p_val = np.array([r["prob"] for r in val_rows])
     l_val = np.array([r["logit"] for r in val_rows])
     temp = fit_temperature(y_val, l_val)
-    thr = best_threshold(y_val, p_val)
-    print(f"calibration: temperature {temp:.3f}, threshold {thr:.3f}")
+    thr = best_threshold(y_val, p_val, args.threshold_criterion)
+    print("threshold criteria on validation:")
+    print(threshold_report(y_val, p_val))
+    print(f"\ncalibration: temperature {temp:.3f}, threshold {thr:.3f} "
+          f"(criterion: {args.threshold_criterion})")
 
     videos = load_manifest(args.manifest, splits=(args.split,))
     rows = []
@@ -146,6 +200,7 @@ def main():
     p = np.array([r["prob"] for r in rows])
     report = {"overall": metrics(y, p, thr),
               "threshold": thr, "temperature": temp,
+              "threshold_criterion": args.threshold_criterion,
               "by_condition": {}, "by_source": {}, "by_method": {}}
 
     for key, field in (("by_condition", "condition"), ("by_source", "source")):
@@ -177,7 +232,9 @@ def main():
     out = Path(args.out or Path(args.checkpoint).parent / f"report_{args.split}.json")
     out.write_text(json.dumps(report, indent=2))
     cal = Path(args.checkpoint).parent / "calibration.json"
-    cal.write_text(json.dumps({"temperature": temp, "threshold": thr}, indent=2))
+    cal.write_text(json.dumps({"temperature": temp, "threshold": thr,
+                               "criterion": args.threshold_criterion},
+                              indent=2))
     print(f"\nwrote {out} and {cal}")
 
 
