@@ -41,6 +41,10 @@ FAKE_METHODS = (
     "wav2lip", "sadtalker", "mraa", "fomm", "tpsm", "styleheat",
     "sd15", "sdxl", "ddim", "ddpm", "stargan", "stylegan", "collab",
     "vqgan", "pixart", "midjourney", "heygen", "hyperreenact",
+    # Singular. Some FF++ redistributions name the folder "deepfake", which
+    # the plural token above does not match. Kept last so archives using
+    # "deepfakes" still report under that name.
+    "deepfake",
 )
 
 
@@ -76,6 +80,24 @@ def infer_video_id(path: Path, source: str) -> str:
     return f"{source}/{parent}/{stem or path.stem}"
 
 
+# Splits are often already baked into the archive layout. FF++ unpacks as
+# dataset_split/test/deepfake/008_990/... and Celeb-DF as test/fake/<hash>/...
+# Both name the split as a whole path component.
+_SPLIT_ALIASES = {
+    "train": "train", "training": "train",
+    "val": "val", "valid": "val", "validation": "val",
+    "test": "test", "testing": "test",
+}
+
+
+def infer_split(path: Path) -> str | None:
+    """Return the split named in the path, or None if the layout has none."""
+    for part in _norm(path).split("/")[:-1]:
+        if part in _SPLIT_ALIASES:
+            return _SPLIT_ALIASES[part]
+    return None
+
+
 def infer_identity(video_id: str) -> str:
     """FF++ uses 000_003 (target_source); Celeb-DF uses idNN_xxxx.
     Identity grouping stops the same face landing in train and test."""
@@ -107,16 +129,39 @@ def scan(root: Path, source: str, limit: int | None = None):
             "label": label,
             "method": method,
             "frame_path": str(p),
+            "path_split": infer_split(p),
         })
     return rows, unresolved
 
 
-def assign_splits(rows):
-    """Split on identity so no face appears in two splits."""
+def assign_splits(rows, use_path_splits=True):
+    """Split on identity so no face appears in two splits.
+
+    When an archive already ships a train/val/test layout AND every one of
+    its files sits under one of those folders, that split is used verbatim
+    for that source. Two reasons to prefer it:
+
+      * It is the split the dataset was published with, so numbers stay
+        comparable to other work.
+      * Identity grouping only works when the folder name carries the
+        identity. FF++ does (008_990 -> 008). Celeb-DF redistributions that
+        hash the folder name do not, so every video looks like its own
+        identity and the "identity split" silently degrades into a video
+        split. Deferring to the shipped layout is the honest option.
+
+    Sources without a usable layout fall back to identity assignment.
+    """
     rng = random.Random(DATA.seed)
     by_source = defaultdict(set)
     for r in rows:
         by_source[r["source"]].add((r["identity"], r["label"]))
+
+    # Which sources carry a complete split layout?
+    path_split_ok = {}
+    for source in by_source:
+        rows_s = [r for r in rows if r["source"] == source]
+        path_split_ok[source] = (use_path_splits and
+                                 all(r.get("path_split") for r in rows_s))
 
     split_of = {}
     for source, ids in by_source.items():
@@ -124,6 +169,8 @@ def assign_splits(rows):
             for ident, _ in ids:
                 split_of[(source, ident)] = "holdout"
             continue
+        if path_split_ok[source]:
+            continue                      # handled per-row below
         ids = sorted(ids)
         rng.shuffle(ids)
         n = len(ids)
@@ -139,7 +186,11 @@ def assign_splits(rows):
             split_of[(source, ident)] = s
 
     for r in rows:
-        s = split_of[(r["source"], r["identity"])]
+        if (r["source"] not in DATA.holdout_sources
+                and path_split_ok[r["source"]]):
+            s = r["path_split"]
+        else:
+            s = split_of[(r["source"], r["identity"])]
         # Unseen-generator probe: pull these methods out of train entirely.
         if s == "train" and r["method"] in DATA.holdout_methods:
             s = "unseen_method"
@@ -153,6 +204,9 @@ def main():
                     help="scan 4000 files per source and print what was found")
     ap.add_argument("--root", default=str(DATA.root))
     ap.add_argument("--out", default=str(DATA.manifest))
+    ap.add_argument("--ignore-path-splits", action="store_true",
+                    help="ignore any train/val/test folders in the archive "
+                         "and assign splits by identity instead")
     args = ap.parse_args()
 
     root = Path(args.root)
@@ -184,15 +238,22 @@ def main():
         print("\nDry run only. Re-run without --dry-run to write the manifest.")
         return
 
-    all_rows = assign_splits(all_rows)
+    all_rows = assign_splits(all_rows, use_path_splits=not args.ignore_path_splits)
     print("splits       :", Counter(r["split"] for r in all_rows))
+    for source in sorted({r["source"] for r in all_rows}):
+        rows_s = [r for r in all_rows if r["source"] == source]
+        mode = ("archive layout" if all(r.get("path_split") for r in rows_s)
+                and not args.ignore_path_splits else "identity grouping")
+        n_ident = len({r["identity"] for r in rows_s})
+        print(f"  {source:10s} split by {mode:16s} "
+              f"({n_ident:,} identities over {len({r['video_id'] for r in rows_s}):,} videos)")
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=[
             "source", "video_id", "identity", "label", "method",
-            "split", "frame_path"])
+            "split", "frame_path"], extrasaction="ignore")
         w.writeheader()
         w.writerows(all_rows)
     print(f"\nwrote {len(all_rows):,} rows -> {out}")

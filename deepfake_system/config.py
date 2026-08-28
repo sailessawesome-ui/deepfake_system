@@ -1,4 +1,5 @@
 """Central configuration for the deepfake detection system."""
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -18,12 +19,17 @@ class DataConfig:
 
     manifest: Path = Path("/content/manifest.csv")
 
-    # Frames per clip fed to the temporal head.
-    clip_len: int = 16
+    # Frames per clip fed to the temporal head. 8 rather than 16 because
+    # Celeb-DF crops here are 32 frames per video: at clip_len 16 with
+    # stride 3 the sampler runs off the end and pads by repeating the
+    # last frame, so ~31% of every clip is one frozen image.
+    clip_len: int = 8
     # Stride between sampled frames inside a video (in frames).
     frame_stride: int = 3
-    # Face crop size.
-    img_size: int = 300
+    # Face crop size. 224 rather than 300 to fit a 16 GB T4: train.py
+    # holds the clean and degraded graphs in memory at once, so a step
+    # costs 2 x batch x clip_len images of activations.
+    img_size: int = 224
 
     # Splitting is done by video/identity, never by frame.
     val_ratio: float = 0.12
@@ -50,9 +56,13 @@ class ModelConfig:
 
 @dataclass
 class TrainConfig:
-    epochs: int = 22
+    # 16 with early stopping (train.py --patience) rather than a guess.
+    # An epoch here is one clip per training video, so epochs are
+    # smaller than the clips_per_video=2 in train.py implies - the
+    # sampler's index range caps at the video count.
+    epochs: int = 16
     batch_size: int = 8            # clips per batch (T4). Use 16 on A100.
-    accum_steps: int = 2
+    accum_steps: int = 4           # effective batch 32
     lr: float = 2.5e-4
     backbone_lr_mult: float = 0.25
     weight_decay: float = 0.02
@@ -60,7 +70,10 @@ class TrainConfig:
     label_smoothing: float = 0.05
     amp: bool = True
     ema_decay: float = 0.999
-    num_workers: int = 4
+    # Scaled to the machine. Colab free gives 2 vCPUs, Pro gives 8-12.
+    # degrade_clip is ~70% of the per-item CPU cost, so on a fast GPU the
+    # loader is what starves first if this is left low.
+    num_workers: int = min(8, max(2, (os.cpu_count() or 4) - 2))
 
     # Probability that a training clip is degraded to look like a
     # messenger re-upload.

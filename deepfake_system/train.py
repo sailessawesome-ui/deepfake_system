@@ -95,6 +95,13 @@ def main():
     ap.add_argument("--backbone", default=MODEL.backbone)
     ap.add_argument("--resume", default=TRAIN.resume)
     ap.add_argument("--no-srm", action="store_true")
+    ap.add_argument("--patience", type=int, default=5,
+                    help="stop if val F1 has not improved for this many "
+                         "epochs. 0 disables it.")
+    ap.add_argument("--consistency-weight", type=float,
+                    default=TRAIN.consistency_weight,
+                    help="weight on the clean/degraded agreement loss. "
+                         "Set 0 to ablate it.")
     args = ap.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -104,6 +111,9 @@ def main():
     MODEL.backbone = args.backbone
     if args.no_srm:
         MODEL.use_srm = False
+    TRAIN.consistency_weight = args.consistency_weight
+    print(f"consistency weight {TRAIN.consistency_weight} | "
+          f"srm {MODEL.use_srm} | backbone {MODEL.backbone}")
 
     train_videos = load_manifest(args.manifest, splits=("train",))
     val_videos = load_manifest(args.manifest, splits=("val",))
@@ -122,9 +132,6 @@ def main():
                         num_workers=TRAIN.num_workers, pin_memory=True)
 
     model = build_model(MODEL).to(device)
-    if args.resume:
-        model.load_state_dict(torch.load(args.resume, map_location=device)["model"])
-        print(f"resumed from {args.resume}")
 
     opt = torch.optim.AdamW(
         param_groups(model, args.lr, TRAIN.backbone_lr_mult, TRAIN.weight_decay))
@@ -133,8 +140,36 @@ def main():
     scaler = torch.amp.GradScaler("cuda", enabled=TRAIN.amp)
     ema = EMA(model, TRAIN.ema_decay)
 
-    best_f1, history = 0.0, []
-    for epoch in range(args.epochs):
+    # Resuming restores the optimizer, the LR schedule position and the EMA
+    # as well as the weights. Loading weights alone restarts the cosine
+    # schedule from warmup and throws away Adam's moments, which costs more
+    # than the epochs it appears to save. Older checkpoints that only carry
+    # "model" still load — the rest is skipped.
+    start_epoch, best_f1, history = 0, 0.0, []
+    best_epoch, stale = -1, 0
+    if args.resume:
+        ckpt = torch.load(args.resume, map_location=device, weights_only=False)
+        model.load_state_dict(ckpt["model"])
+        for key, obj in (("ema", ema.shadow), ("opt", opt),
+                         ("sched", sched), ("scaler", scaler)):
+            if key in ckpt:
+                obj.load_state_dict(ckpt[key])
+        start_epoch = ckpt.get("epoch", -1) + 1
+        best_f1 = ckpt.get("best_f1", 0.0)
+        best_epoch = ckpt.get("best_epoch", -1)
+        history = ckpt.get("history", [])
+        missing = [k for k in ("ema", "opt", "sched", "scaler") if k not in ckpt]
+        print(f"resumed from {args.resume} at epoch {start_epoch}"
+              f" (best f1 so far {best_f1:.4f})")
+        if missing:
+            print(f"  note: checkpoint had no {', '.join(missing)} — "
+                  f"those restart from scratch")
+        if start_epoch >= args.epochs:
+            print(f"  nothing to do: already finished {start_epoch} epochs. "
+                  f"Raise --epochs to keep training.")
+            return
+
+    for epoch in range(start_epoch, args.epochs):
         model.train()
         t0, running = time.time(), []
         opt.zero_grad(set_to_none=True)
@@ -194,20 +229,46 @@ def main():
                         "raw": m_raw, "ema": m_ema})
 
         if best_of["f1"] > best_f1:
-            best_f1 = best_of["f1"]
+            best_f1, best_epoch, stale = best_of["f1"], epoch, 0
             state = (ema.shadow if tag == "ema" else model).state_dict()
             torch.save({"model": state, "config": {
                 "backbone": MODEL.backbone, "use_srm": MODEL.use_srm,
                 "temporal": MODEL.temporal, "img_size": DATA.img_size,
-                "clip_len": DATA.clip_len},
-                "val": best_of}, out / "best.pt")
+                "clip_len": DATA.clip_len,
+                "consistency_weight": TRAIN.consistency_weight},
+                "epoch": epoch, "val": best_of}, out / "best.pt")
             print(f"  saved best.pt (f1 {best_f1:.4f})")
+        else:
+            stale += 1
+            print(f"  no improvement for {stale} epoch(s); "
+                  f"best is epoch {best_epoch} at f1 {best_f1:.4f}")
 
-        torch.save({"model": model.state_dict(), "epoch": epoch},
+        torch.save({"model": model.state_dict(),
+                    "ema": ema.shadow.state_dict(),
+                    "opt": opt.state_dict(),
+                    "sched": sched.state_dict(),
+                    "scaler": scaler.state_dict(),
+                    "epoch": epoch, "best_f1": best_f1,
+                    "best_epoch": best_epoch, "history": history,
+                    "config": {"backbone": MODEL.backbone,
+                               "use_srm": MODEL.use_srm,
+                               "temporal": MODEL.temporal,
+                               "img_size": DATA.img_size,
+                               "clip_len": DATA.clip_len}},
                    out / "last.pt")
         (out / "history.json").write_text(json.dumps(history, indent=2))
 
-    print(f"done. best val f1 {best_f1:.4f}")
+        if args.patience and stale >= args.patience:
+            print()
+            print(f"stopping early: no val F1 gain in {stale} epochs. "
+                  f"The cosine schedule did not finish, so the last epochs "
+                  f"ran at a higher LR than planned - best.pt still holds "
+                  f"the peak-F1 weights, which is what you want.")
+            break
+
+    print()
+    print(f"done. best val f1 {best_f1:.4f} at epoch {best_epoch} "
+          f"(of {len(history)} epochs run). best.pt holds those weights.")
 
 
 if __name__ == "__main__":

@@ -221,6 +221,10 @@ class Engine:
             MODEL.temporal = cfg.get("temporal", MODEL.temporal)
             MODEL.pretrained = False
             self.clip_len = cfg.get("clip_len", DATA.clip_len)
+            # Crops must be served at the size the model was trained on.
+            # FaceExtractor was built from DATA.img_size before the
+            # checkpoint was read, so correct it here.
+            self.faces.size = cfg.get("img_size", DATA.img_size)
             self.model = build_model(MODEL).to(self.device).eval()
             self.model.load_state_dict(ck["model"])
             self.backbone = MODEL.backbone
