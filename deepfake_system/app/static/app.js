@@ -102,6 +102,17 @@ async function loadStatus() {
       el.telemetryFaceBackend.textContent = (s.face_backend || 'HAAR').toUpperCase();
     }
 
+    const accEl = document.getElementById('telemetryAccuracy');
+    const accSub = document.getElementById('telemetryAccuracySub');
+    if (accEl && s.model_version && s.model_version.includes('f1=')) {
+      const match = s.model_version.match(/f1=([\d\.]+)/);
+      if (match) {
+        const val = (parseFloat(match[1]) * 100).toFixed(1);
+        accEl.innerHTML = `${val}<span class="telemetry-unit">%</span>`;
+        if (accSub) accSub.textContent = `Held-out FF++ (c23) & Celeb-DF v2 (Val F1: ${val}%)`;
+      }
+    }
+
     el.engineMeta.append(
       engine,
       chip(`faces · ${s.face_backend}`),
