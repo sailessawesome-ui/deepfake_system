@@ -373,10 +373,19 @@ class Engine:
         notes.extend(credentials.get("notes", []))
         if audio_report.get("available") is False and audio_report.get("reason"):
             notes.append(audio_report["reason"])
-        # A clear audio-visual mismatch widens the margin: something in
-        # this file disagrees with itself, whichever half is wrong.
-        if audio_report.get("lipsync", {}).get("reading") == "mismatched":
-            band += 0.04
+        # Multimodal Audio-Visual Fusion (IR 3.4.1 FR1)
+        # If visual cues are attenuated by messenger recompression, but the audio
+        # branch detects explicit lip-sync mismatch or synthetic voice cloning,
+        # fuse the audio evidence into the composite manipulation probability.
+        if audio_report.get("available"):
+            lip_reading = audio_report.get("lipsync", {}).get("reading")
+            voice_synth = audio_report.get("voice", {}).get("synthetic_indicators", False)
+            if lip_reading == "mismatched":
+                band += 0.05
+                prob = max(prob, 0.72)
+            elif voice_synth:
+                band += 0.05
+                prob = max(prob, 0.65)
 
         lo, hi = max(0.0, prob - band), min(1.0, prob + band)
         straddles = lo <= self.threshold <= hi
