@@ -113,6 +113,8 @@ def _download_stream_url(url: str, out_path: str) -> tuple[str, str]:
         'format': 'bestvideo[height<=720]+bestaudio/best[height<=720]/best',
         'outtmpl': outtmpl,
         'merge_output_format': 'mp4',
+        'overwrites': True,
+        'postprocessor_args': ['-y'],
         'max_filesize': MAX_BYTES,
         'quiet': True,
         'no_warnings': True,
@@ -121,10 +123,11 @@ def _download_stream_url(url: str, out_path: str) -> tuple[str, str]:
         info = ydl.extract_info(url, download=True)
         title = info.get('title', 'stream_video')
         actual_path = out_path
-        if not os.path.exists(actual_path):
+        if not os.path.exists(actual_path) or os.path.getsize(actual_path) == 0:
             for ext in [".mp4", ".mkv", ".webm"]:
-                if os.path.exists(base + ext):
-                    actual_path = base + ext
+                cand = base + ext
+                if os.path.exists(cand) and os.path.getsize(cand) > 0:
+                    actual_path = cand
                     break
         return title, actual_path
 
@@ -138,9 +141,13 @@ async def analyse_url(req: UrlRequest):
     tmp_base = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
     tmp_path = tmp_base.name
     tmp_base.close()
+    if os.path.exists(tmp_path):
+        os.unlink(tmp_path)
 
     try:
         title, final_path = await run_in_threadpool(_download_stream_url, url, tmp_path)
+        if not os.path.exists(final_path) or os.path.getsize(final_path) == 0:
+            raise HTTPException(400, f"Failed to download stream container from {url}.")
 
         import hashlib
         sha256 = hashlib.sha256()
