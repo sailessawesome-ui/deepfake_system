@@ -488,6 +488,44 @@ async function send(file) {
   }
 }
 
+async function sendUrl(url) {
+  show('working');
+  el.workingFile.textContent = `${url.length > 50 ? url.substring(0, 48) + '...' : url} · Stream Ingestion`;
+
+  const STREAM_STEPS = [
+    'Connecting to media platform & downloading 720p container',
+    'Decoding video keyframes & validating SHA-256 integrity',
+    'Extracting & aligning biometric facial regions (MTCNN)',
+    'Evaluating spatial-frequency artifacts & temporal attention',
+    'Analyzing audio-visual lip-sync & acoustic vocoder spectra',
+    'Computing composite manipulation probability & confidence band'
+  ];
+
+  let i = 0;
+  el.workingStep.textContent = STREAM_STEPS[0];
+  const ticker = setInterval(() => {
+    i = Math.min(i + 1, STREAM_STEPS.length - 1);
+    el.workingStep.textContent = STREAM_STEPS[i];
+  }, 2500);
+
+  try {
+    const res = await fetch('/api/analyse-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Could not stream and analyze this media URL.');
+    clearInterval(ticker);
+    render(data);
+    remember(data);
+  } catch (err) {
+    clearInterval(ticker);
+    el.failureMsg.textContent = err.message || 'The connection dropped before the forensic analysis finished.';
+    show('failure');
+  }
+}
+
 function show(which) {
   el.empty.hidden = which !== 'empty';
   el.working.hidden = which !== 'working';
@@ -1355,6 +1393,10 @@ loadStatus();
         el.failure.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 300);
     }
+    return;
+  const urlParam = params.get('url');
+  if (urlParam) {
+    sendUrl(decodeURIComponent(urlParam));
     return;
   }
 

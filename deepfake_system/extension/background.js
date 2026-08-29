@@ -41,16 +41,11 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
     let data;
 
-    // 2A. Social / DASH platforms (YouTube, Facebook, TikTok, Instagram, X): Ingest via URL Engine
+    // 2A. Social / DASH platforms (YouTube, Facebook, TikTok, Instagram, X): Open Lab instantly with streaming URL
     if (result.useUrlEngine) {
-      notify("Extracting Media", `Streaming video container from ${result.domain || pageHost}...`);
-      const res = await fetch(`${server}/api/analyse-url`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: result.pageUrl })
-      });
-      data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Could not stream video from this URL.");
+      notify("Ingesting Stream", `Opening Forensic Lab for ${result.domain || pageHost}...`);
+      chrome.tabs.create({ url: `${server}/?url=${encodeURIComponent(result.pageUrl)}`, active: true });
+      return;
     } else {
       // 2B. Direct Media File: Fetch buffer in Extension Worker
       notify("Downloading Evidence", `Extracting media buffer from ${result.domain || pageHost}...`);
