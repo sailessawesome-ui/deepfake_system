@@ -1339,9 +1339,25 @@ window.addEventListener('resize', () => {
 initAuth();
 loadStatus();
 
-// Auto-load latest verification report if opened from browser extension
+// Auto-load latest verification report or forensic notice if opened from browser extension
 (function checkAutoLoad() {
   const params = new URLSearchParams(window.location.search);
+  const notice = params.get('notice');
+  if (notice) {
+    const src = params.get('source') || 'Social Media';
+    if (el.failure && el.failureMsg) {
+      el.failureMsg.innerHTML = `<strong>Notice (${src}):</strong> ${decodeURIComponent(notice)}`;
+      el.failure.hidden = false;
+      el.empty.hidden = true;
+      el.result.hidden = true;
+      el.working.hidden = true;
+      setTimeout(() => {
+        el.failure.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
+    }
+    return;
+  }
+
   if (params.get('view') === 'latest' || window.location.hash === '#latest') {
     fetch('/api/reports/latest')
       .then(res => res.json())

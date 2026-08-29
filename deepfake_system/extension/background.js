@@ -57,6 +57,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     chrome.tabs.create({ url: `${server}/?view=latest`, active: true });
   } catch (err) {
     notify("Forensic Notice", err.message);
+    const noticeEncoded = encodeURIComponent(err.message);
+    chrome.tabs.create({ url: `${server}/?notice=${noticeEncoded}&source=${encodeURIComponent(pageHost)}`, active: true });
   }
 });
 
