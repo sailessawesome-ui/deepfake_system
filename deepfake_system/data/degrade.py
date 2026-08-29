@@ -35,7 +35,8 @@ def _jpeg(frame: np.ndarray, quality: int) -> np.ndarray:
                            [int(cv2.IMWRITE_JPEG_QUALITY), quality])
     if not ok:
         return frame
-    return cv2.imdecode(buf, cv2.IMREAD_COLOR)[:, :, ::-1]
+    dec = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+    return dec[:, :, ::-1] if dec is not None else frame
 
 
 def _chroma_subsample(frame: np.ndarray, factor: int = 2) -> np.ndarray:

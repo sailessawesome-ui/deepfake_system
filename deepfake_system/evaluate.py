@@ -26,8 +26,8 @@ from data.dataset import ClipDataset, load_manifest
 from models.net import build_model
 
 
-def aggregate(clip_probs: np.ndarray, how: str = None,
-              trim: float = None) -> float:
+def aggregate(clip_probs: np.ndarray, how: str | None = None,
+              trim: float | None = None) -> float:
     how = how or INFER.aggregation
     trim = INFER.trim_fraction if trim is None else trim
     p = np.sort(clip_probs)

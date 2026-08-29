@@ -78,7 +78,7 @@ def extract_audio(video_path: str, seconds: float | None = None
     audio = np.frombuffer(raw, dtype=dtype).astype(np.float32)
     if audio.size == 0:
         return None, "The audio track decoded to nothing."
-    audio /= float(np.iinfo(dtype).max)
+    audio /= float(np.iinfo(dtype).max)  # type: ignore
     return audio, None
 
 

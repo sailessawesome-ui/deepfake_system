@@ -28,6 +28,7 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 
 # Fields that must never reach storage, whatever the caller passes.
@@ -89,14 +90,13 @@ class ReportStore:
         self.region = region
         self.local_path = Path(local_path)
         self.backend = "local"
-        self.table = None
-        self.error = None
+        self.table: Any = None
+        self.error: str | None = None
 
         if prefer_dynamo:
             try:
-                import boto3
-                from botocore.exceptions import BotoCoreError, ClientError
-                res = boto3.resource("dynamodb", region_name=region)
+                import boto3  # type: ignore
+                res: Any = boto3.resource("dynamodb", region_name=region)
                 table = res.Table(table_name)
                 table.load()                       # raises if absent/no creds
                 self.table = table
@@ -112,7 +112,7 @@ class ReportStore:
     # ------------------------------------------------------------- write
     def save(self, record: dict) -> dict:
         record = {k: v for k, v in record.items() if v is not None}
-        if self.backend == "dynamodb":
+        if self.backend == "dynamodb" and self.table is not None:
             try:
                 self.table.put_item(Item=_clean(record))
                 return {"stored": True, "backend": "dynamodb",
@@ -131,11 +131,11 @@ class ReportStore:
 
     # -------------------------------------------------------------- read
     def recent(self, limit: int = 25) -> list:
-        if self.backend == "dynamodb":
+        if self.backend == "dynamodb" and self.table is not None:
             try:
-                items = self.table.scan(Limit=limit * 3).get("Items", [])
-                items = [_undecimal(i) for i in items]
-                items.sort(key=lambda r: r.get("created_at", ""), reverse=True)
+                raw_items = self.table.scan(Limit=limit * 3).get("Items", [])
+                items: list[Any] = [_undecimal(i) for i in raw_items if isinstance(i, dict)]
+                items.sort(key=lambda r: str(r.get("created_at", "") if isinstance(r, dict) else ""), reverse=True)
                 return items[:limit]
             except Exception as exc:
                 self.error = str(exc)[:160]

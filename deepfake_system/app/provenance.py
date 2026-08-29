@@ -29,6 +29,7 @@ import json
 import re
 import subprocess
 from pathlib import Path
+from typing import Any
 
 # Box types that carry a C2PA manifest inside an ISO-BMFF container.
 _JUMBF_MARKERS = (b"jumb", b"c2pa", b"caup", b"urn:uuid:")
@@ -61,13 +62,13 @@ def _ffprobe(path: str) -> dict:
         return {}
 
 
-def _scan_boxes(path: str, limit: int = 4 * 1024 * 1024) -> dict:
+def _scan_boxes(path: str, limit: int = 4 * 1024 * 1024) -> dict[str, Any]:
     """Look for a C2PA/JUMBF box near the start and end of the file.
 
     Manifests sit in the moov atom, which is at the front for streaming
     files and at the back otherwise, so both ends are checked.
     """
-    found = {"jumbf_box": False, "c2pa_uuid": False, "offset": None}
+    found: dict[str, Any] = {"jumbf_box": False, "c2pa_uuid": False, "offset": None}
     try:
         size = Path(path).stat().st_size
         with open(path, "rb") as f:
@@ -102,7 +103,7 @@ def _parse_c2pa(path: str) -> dict | None:
     except ImportError:
         return None
     try:
-        reader = c2pa.Reader.from_file(path)
+        reader = c2pa.Reader.from_file(path)  # type: ignore
         manifest = json.loads(reader.json())
     except Exception as exc:
         return {"valid": False, "error": str(exc)[:200]}

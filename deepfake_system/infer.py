@@ -14,6 +14,7 @@ import json
 import subprocess
 from dataclasses import dataclass, asdict
 from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
@@ -59,6 +60,7 @@ class FaceExtractor:
         self.size = size or DATA.img_size
         self.device = device
         self.backend = None
+        self.det: Any = None
         try:
             from facenet_pytorch import MTCNN
             self.det = MTCNN(keep_all=True, device=device, post_process=False)
@@ -70,8 +72,10 @@ class FaceExtractor:
                     model_selection=1, min_detection_confidence=0.5)
                 self.backend = "mediapipe"
             except Exception:
+                data_dir = getattr(cv2, "data", None)
+                haarcascades = getattr(data_dir, "haarcascades", "") if data_dir else ""
                 self.det = cv2.CascadeClassifier(
-                    cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+                    str(haarcascades) + "haarcascade_frontalface_default.xml")
                 self.backend = "haar"
 
     def _boxes(self, frame_rgb):

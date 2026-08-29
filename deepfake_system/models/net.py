@@ -167,10 +167,10 @@ class DeepfakeDetector(nn.Module):
         feats = self.encode_frames(x)                     # (B, T, D)
         frame_logits = self.frame_head(feats).squeeze(-1)  # (B, T)
 
-        if isinstance(self.temporal, nn.GRU):
+        if self.temporal is not None and isinstance(self.temporal, nn.GRU):
             out, _ = self.temporal(feats)
             pooled, attn = out.mean(dim=1), None
-        elif isinstance(self.temporal, TemporalAttention):
+        elif self.temporal is not None and isinstance(self.temporal, TemporalAttention):
             pooled, attn = self.temporal(feats, return_weights=True)
         else:
             pooled, attn = feats.mean(dim=1), None

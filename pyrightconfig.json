@@ -1,0 +1,15 @@
+{
+  "include": [
+    "deepfake_system"
+  ],
+  "extraPaths": [
+    "C:/Users/Sailess Raj/AppData/Local/Programs/Python/Python312/Lib/site-packages",
+    "deepfake_system",
+    "deepfake_system/app"
+  ],
+  "pythonVersion": "3.12",
+  "pythonPlatform": "Windows",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": "none",
+  "reportMissingModuleSource": "none"
+}
