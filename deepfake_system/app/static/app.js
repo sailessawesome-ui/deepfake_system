@@ -667,7 +667,7 @@ function render(d) {
   if (prob !== null) {
     const fakePct = Math.round(prob * 100);
     el.verdictNum.textContent = `${fakePct}%`;
-    if (el.verdictPct) el.verdictPct.textContent = `${fakePct}% Fake Score`;
+    if (el.verdictPct) el.verdictPct.textContent = 'Deepfake Probability';
   } else {
     el.verdictNum.textContent = '—';
     if (el.verdictPct) el.verdictPct.textContent = 'No Score';
@@ -1049,29 +1049,66 @@ function remember(d) {
   el.recent.innerHTML = '';
   session.forEach((item, i) => {
     const li = document.createElement('li');
+    li.className = 'recent-item';
+
     const b = document.createElement('button');
     b.type = 'button';
+    b.className = 'recent-btn';
+    
     const dot = document.createElement('span');
     dot.className = 'legend-dot ' + ({ authentic: 'dot--real', manipulated: 'dot--fake' }[item.label] || 'dot--maybe');
     
     const isFake = item.label === 'manipulated';
     const isReal = item.label === 'authentic';
     const statusLabel = isFake ? 'FAKE' : (isReal ? 'NOT FAKE' : 'INCONCLUSIVE');
-    const scoreVal = item.probability !== null ? `${(item.probability * 100).toFixed(1)}%` : '—';
+    const scoreVal = item.probability !== null ? `${Math.round(item.probability * 100)}%` : '—';
+    const scoreCls = isFake ? 'is-fake' : (isReal ? 'is-real' : 'is-maybe');
 
     const name = document.createElement('span');
     name.className = 'recent-name';
     name.textContent = `[${statusLabel}] ${item.filename}`;
+    name.title = item.filename;
     
     const score = document.createElement('span');
-    score.className = 'recent-score';
-    score.textContent = `Fake: ${scoreVal}`;
+    score.className = `recent-score ${scoreCls}`;
+    score.textContent = scoreVal;
 
     b.append(dot, name, score);
     b.addEventListener('click', () => render(session[i]));
-    li.appendChild(b);
+
+    // Direct PDF Report Export Button beside percentage score
+    const pdfBtn = document.createElement('button');
+    pdfBtn.type = 'button';
+    pdfBtn.className = 'recent-pdf-btn';
+    pdfBtn.title = `Export ISO 27037 PDF Report for ${item.filename}`;
+    pdfBtn.innerHTML = `
+      <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
+        <line x1="12" y1="18" x2="12" y2="12"></line>
+        <polyline points="9 15 12 18 15 15"></polyline>
+      </svg>
+      <span>PDF</span>
+    `;
+    pdfBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openPdfReportForItem(session[i]);
+    });
+
+    li.append(b, pdfBtn);
     el.recent.appendChild(li);
   });
+}
+
+function openPdfReportForItem(item) {
+  current = item;
+  render(item);
+  renderPdfSheet(item);
+  el.pdfModal.hidden = false;
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => {
+    downloadPdfFile();
+  }, 400);
 }
 
 /* ── Actions ────────────────────────────────────────────────────── */

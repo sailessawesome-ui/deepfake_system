@@ -491,24 +491,43 @@ button { font: inherit; color: inherit; }
   font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
   background: var(--bg-card-hover); padding: 2px 6px; border-radius: 4px;
 }
-.recent-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; min-width: 0; }
-.recent-list li { min-width: 0; }
-.recent-list button {
-  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  background: none; border: 1px solid transparent; padding: 7px 8px;
-  border-radius: var(--radius-sm); cursor: pointer; text-align: left;
-  transition: all 0.15s; min-width: 0; box-sizing: border-box; overflow: hidden;
+.recent-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; min-width: 0; }
+.recent-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  background: rgba(255, 255, 255, 0.02); border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-sm); padding: 4px 6px; transition: all 0.15s;
+  min-width: 0; box-sizing: border-box;
 }
-.recent-list button:hover {
-  background: var(--bg-card-hover); border-color: var(--line-subtle);
+.recent-item:hover {
+  background: var(--bg-card-hover); border-color: rgba(0, 240, 255, 0.3);
+}
+.recent-btn {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px;
+  background: none; border: 0; padding: 4px 2px; cursor: pointer;
+  text-align: left; overflow: hidden;
 }
 .recent-name {
-  flex: 1; min-width: 0; font-size: 12px; color: var(--ink-bright);
+  flex: 1; min-width: 0; font-size: 11.5px; color: var(--ink-bright);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .recent-score {
-  flex-shrink: 0; font-family: var(--font-mono); font-size: 11px; font-weight: 600;
-  white-space: nowrap; color: var(--cyber-cyan);
+  flex-shrink: 0; font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  white-space: nowrap; margin-right: 4px;
+}
+.recent-score.is-fake { color: var(--fake); }
+.recent-score.is-real { color: var(--real); }
+.recent-score.is-maybe { color: var(--maybe); }
+
+.recent-pdf-btn {
+  display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
+  background: rgba(0, 240, 255, 0.08); border: 1px solid rgba(0, 240, 255, 0.3);
+  color: var(--cyber-cyan); padding: 4px 8px; border-radius: 4px;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  cursor: pointer; transition: all 0.2s;
+}
+.recent-pdf-btn:hover {
+  background: var(--cyber-cyan); color: #000;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
 }
 .rail-foot {
   margin: 10px 0 0; font-family: var(--font-mono); font-size: 10px;
