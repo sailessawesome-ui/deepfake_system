@@ -128,9 +128,8 @@ class StoreConfig:
 
 @dataclass
 class InferConfig:
-    # Clips sampled per video at inference. More clips means a steadier
-    # video-level score once the trimmed mean drops the extremes.
-    clips_per_video: int = 32
+    # Balanced for fast real-time forensic scanning on CPU (10-15s)
+    clips_per_video: int = 12
 
     # Score each clip twice - as-is and horizontally mirrored - and average.
     # Training already flips clips at random, so the model is flip-invariant

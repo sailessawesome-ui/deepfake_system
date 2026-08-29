@@ -162,7 +162,7 @@ class FaceExtractor:
         return cv2.resize(rgb[y1:y2, x1:x2], (self.size, self.size),
                           interpolation=cv2.INTER_AREA)
 
-    def extract(self, video_path, max_samples=96):
+    def extract(self, video_path, max_samples=48):
         cap = cv2.VideoCapture(video_path)
         total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
         fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
@@ -284,21 +284,11 @@ class Engine:
                 x = x.to(self.device)
                 logit, frame_logit = self.model(x)
                 if INFER.tta:
-                    # Multi-view TTA: Original (50%) + Horizontal Flip (30%) + Center-Zoom (20%)
+                    # Fast 2-View Flip TTA for variance reduction & rapid CPU inference
                     x_flip = torch.flip(x, dims=[-1])
                     logit_f, frame_f = self.model(x_flip)
-                    
-                    # 1.10x Center Zoom to catch boundary seam artifacts
-                    _, _, _, H, W = x.shape
-                    dh, dw = max(1, int(H * 0.05)), max(1, int(W * 0.05))
-                    x_cropped = x[:, :, :, dh:H - dh, dw:W - dw].reshape(-1, 3, H - 2 * dh, W - 2 * dw)
-                    x_zoom = torch.nn.functional.interpolate(
-                        x_cropped, size=(H, W), mode="bilinear", align_corners=False
-                    ).reshape(1, T, 3, H, W)
-                    logit_z, frame_z = self.model(x_zoom)
-
-                    logit = 0.50 * logit + 0.30 * logit_f + 0.20 * logit_z
-                    frame_logit = 0.50 * frame_logit + 0.30 * frame_f + 0.20 * frame_z
+                    logit = 0.5 * (logit + logit_f)
+                    frame_logit = 0.5 * (frame_logit + frame_f)
                 logits.append(float(logit.item()) / self.temperature)
                 fs = torch.sigmoid(frame_logit[0].float()).cpu().numpy()
                 frame_scores[s:s + T] += fs
