@@ -663,10 +663,10 @@ function render(d) {
   el.verdictFile.textContent =
     `${d.filename} · ${d.faces_found} facial crops examined · ${d.elapsed}s scan time`;
   
-  // Explicit Fake Score Display
+  // Explicit Fake Score Display (Pure percentage, no decimals)
   if (prob !== null) {
-    const fakePct = (prob * 100).toFixed(1);
-    el.verdictNum.textContent = prob.toFixed(3);
+    const fakePct = Math.round(prob * 100);
+    el.verdictNum.textContent = `${fakePct}%`;
     if (el.verdictPct) el.verdictPct.textContent = `${fakePct}% Fake Score`;
   } else {
     el.verdictNum.textContent = '—';
@@ -704,11 +704,13 @@ function drawGauge(d, cls) {
   el.gaugeLine.style.left = pct(d.threshold);
 
   const crosses = lo <= d.threshold && d.threshold <= hi;
-  const fakePct = d.probability !== null ? (d.probability * 100).toFixed(1) : '—';
+  const fakePct = d.probability !== null ? `${Math.round(d.probability * 100)}%` : '—';
+  const loPct = `${Math.round(lo * 100)}%`;
+  const hiPct = `${Math.round(hi * 100)}%`;
 
   el.gaugeRead.innerHTML = crosses
-    ? `The video fake score is <b>${fakePct}% (${d.probability.toFixed(3)})</b> with a margin spanning from <b>${lo.toFixed(3)}</b> to <b>${hi.toFixed(3)}</b>. Because the confidence margin crosses the 0.50 threshold, it is flagged as <b>Inconclusive</b> requiring manual review.`
-    : `The video has been determined as <b>${d.label === 'manipulated' ? 'FAKE' : 'NOT FAKE'}</b> with a fake score of <b>${fakePct}% (${d.probability.toFixed(3)})</b>. The confidence margin ([${lo.toFixed(3)}, ${hi.toFixed(3)}]) is entirely ${hi < d.threshold ? 'below' : 'above'} the decision boundary.`;
+    ? `The video fake score is <b>${fakePct}</b> with a margin spanning from <b>${loPct}</b> to <b>${hiPct}</b>. Because the confidence margin crosses the 50% threshold, it is flagged as <b>Inconclusive</b> requiring manual review.`
+    : `The video has been determined as <b>${d.label === 'manipulated' ? 'FAKE' : 'NOT FAKE'}</b> with a fake score of <b>${fakePct}</b>. The confidence margin ([${loPct}, ${hiPct}]) is entirely ${hi < d.threshold ? 'below' : 'above'} the decision boundary.`;
 }
 
 function tint(score) {
@@ -787,7 +789,7 @@ function drawPlot(d) {
   [0, 0.5, 1].forEach((v) => {
     g.beginPath(); g.moveTo(pad.l, y(v)); g.lineTo(w - pad.r, y(v)); g.stroke();
     g.fillStyle = '#64748B'; g.font = '10px "JetBrains Mono", monospace';
-    g.fillText(v === 1 ? '1.0 (Fake)' : (v === 0 ? '0.0 (Real)' : '0.5'), 6, y(v) + 3);
+    g.fillText(v === 1 ? '100% (Fake)' : (v === 0 ? '0% (Real)' : '50%'), 6, y(v) + 3);
   });
 
   if (!scores.length) return;
@@ -806,7 +808,7 @@ function drawPlot(d) {
     g.stroke();
     g.fillStyle = d.probability >= d.threshold ? '#FF0055' : '#00FFAA';
     g.font = '9px "JetBrains Mono", monospace';
-    g.fillText(`Composite ${(d.probability * 100).toFixed(0)}%`, w - pad.r - 80, y(d.probability) - 4);
+    g.fillText(`Score ${Math.round(d.probability * 100)}%`, w - pad.r - 80, y(d.probability) - 4);
   }
   g.setLineDash([]);
 
@@ -976,11 +978,11 @@ function drawSpecs(d) {
   const currentUser = getCurrentUser();
   const examinerStamp = currentUser ? `${currentUser.name} (${currentUser.studentId || 'CYB-2026-9481'})` : 'Sailess Raj (CYB-2026-9481)';
   const verdictText = d.label === 'manipulated' ? 'FAKE VIDEO' : (d.label === 'authentic' ? 'NOT FAKE (REAL)' : 'INCONCLUSIVE');
-  const fakeScoreDisplay = d.probability !== null ? `${(d.probability * 100).toFixed(1)}% (prob: ${d.probability.toFixed(3)})` : '—';
+  const fakeScoreDisplay = d.probability !== null ? `${Math.round(d.probability * 100)}%` : '—';
 
   const rows = [
     ['Verdict', verdictText],
-    ['Overall Fake Score', fakeScoreDisplay],
+    ['Manipulation Score', fakeScoreDisplay],
     ['Examiner on Record', examinerStamp],
     ['Evidence SHA-256 Hash', d.evidence_sha256 || '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08', 'hash-val'],
     ['Container Resolution', m.width && m.height ? `${m.width} × ${m.height}` : 'unknown'],
@@ -1194,10 +1196,9 @@ function renderPdfSheet(d) {
           </div>
         </div>
         <div class="pdf-verdict-right">
-          <div class="pdf-fake-score-label">OVERALL FAKE SCORE</div>
-          <div class="pdf-fake-score-number">${fakeScorePct}%</div>
-          <div class="pdf-fake-prob-sub">Manipulation Probability: ${probVal}</div>
-          <div class="pdf-fake-margin-sub">Margin: [${lo.toFixed(3)}, ${hi.toFixed(3)}]</div>
+          <div class="pdf-fake-score-label">MANIPULATION SCORE</div>
+          <div class="pdf-fake-score-number">${Math.round(d.probability * 100)}%</div>
+          <div class="pdf-fake-margin-sub">Confidence Margin: [${Math.round(lo * 100)}%, ${Math.round(hi * 100)}%]</div>
         </div>
       </div>
 

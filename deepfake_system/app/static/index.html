@@ -339,7 +339,7 @@
           <div class="panel-head">
             <div class="panel-head-title">
               <h3>Confidence Margin Gauge</h3>
-              <span class="panel-badge">DECISION BOUNDARY: 0.50</span>
+              <span class="panel-badge">DECISION BOUNDARY: 50%</span>
             </div>
             <p class="panel-sub">Illustrates the composite score along with the calculated standard error margin.</p>
           </div>
@@ -349,12 +349,12 @@
               <div class="gauge-track"></div>
               <div class="gauge-band" id="gaugeBand"></div>
               <div class="gauge-point" id="gaugePoint"></div>
-              <div class="gauge-line" id="gaugeLine"><span id="gaugeLineLabel">THRESHOLD 0.50</span></div>
+              <div class="gauge-line" id="gaugeLine"><span id="gaugeLineLabel">THRESHOLD 50%</span></div>
             </div>
             <div class="gauge-scale">
-              <span>0.00 AUTHENTIC</span>
-              <span>0.50 DECISION LINE</span>
-              <span>1.00 MANIPULATED</span>
+              <span>0% AUTHENTIC</span>
+              <span>50% DECISION LINE</span>
+              <span>100% MANIPULATED</span>
             </div>
           </div>
           <p class="gauge-read" id="gaugeRead"></p>
@@ -701,6 +701,6 @@
   </div>
 
   <script src="/static/html2pdf.bundle.min.js"></script>
-  <script src="/static/app.js?v=3.7"></script>
+  <script src="/static/app.js?v=3.8"></script>
 </body>
 </html>
