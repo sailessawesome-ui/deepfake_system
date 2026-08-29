@@ -13,6 +13,7 @@ import math
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
@@ -20,15 +21,15 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from config import AUDIO, DATA, INFER  # noqa: E402
-from app import audio as audio_branch  # noqa: E402
-from app import heuristic  # noqa: E402
-from app import provenance  # noqa: E402
+from config import AUDIO, DATA, INFER  # type: ignore # noqa: E402
+from app import audio as audio_branch  # type: ignore # noqa: E402
+from app import heuristic  # type: ignore # noqa: E402
+from app import provenance  # type: ignore # noqa: E402
 
 
 # ---------------------------------------------------------------- container
 
-def probe(video_path: str) -> dict:
+def probe(video_path: str) -> dict[str, Any]:
     import subprocess
     try:
         out = subprocess.run(
@@ -38,33 +39,37 @@ def probe(video_path: str) -> dict:
         data = json.loads(out)
     except Exception:
         cap = cv2.VideoCapture(video_path)
-        meta = {"width": int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or None,
-                "height": int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or None,
-                "fps": round(cap.get(cv2.CAP_PROP_FPS) or 0, 2),
-                "tags": {}, "has_audio": None, "ffprobe": False}
+        meta: dict[str, Any] = {
+            "width": int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or None,
+            "height": int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or None,
+            "fps": round(cap.get(cv2.CAP_PROP_FPS) or 0, 2),
+            "tags": {}, "has_audio": None, "ffprobe": False
+        }
         cap.release()
         return meta
-    v = next((s for s in data.get("streams", [])
-              if s.get("codec_type") == "video"), {})
-    fmt = data.get("format", {})
-    fps = v.get("avg_frame_rate", "0/1")
+    v: dict[str, Any] = next((s for s in data.get("streams", [])
+                              if s.get("codec_type") == "video"), {})
+    fmt: dict[str, Any] = data.get("format", {})
+    fps_raw = v.get("avg_frame_rate", "0/1")
     try:
-        num, den = fps.split("/")
-        fps = round(float(num) / max(1e-6, float(den)), 2)
+        num, den = fps_raw.split("/")
+        fps: float | None = round(float(num) / max(1e-6, float(den)), 2)
     except Exception:
         fps = None
-    return {"codec": v.get("codec_name"), "profile": v.get("profile"),
-            "width": v.get("width"), "height": v.get("height"), "fps": fps,
-            "duration": fmt.get("duration"), "bit_rate": fmt.get("bit_rate"),
-            "tags": fmt.get("tags", {}) or {},
-            "has_audio": any(s.get("codec_type") == "audio"
-                             for s in data.get("streams", [])),
-            "ffprobe": True}
+    return {
+        "codec": v.get("codec_name"), "profile": v.get("profile"),
+        "width": v.get("width"), "height": v.get("height"), "fps": fps,
+        "duration": fmt.get("duration"), "bit_rate": fmt.get("bit_rate"),
+        "tags": fmt.get("tags", {}) or {},
+        "has_audio": any(s.get("codec_type") == "audio"
+                         for s in data.get("streams", [])),
+        "ffprobe": True
+    }
 
 
-def messenger_flags(filename: str, meta: dict) -> dict:
+def messenger_flags(filename: str, meta: dict[str, Any]) -> dict[str, Any]:
     import re
-    flags = {
+    flags: dict[str, Any] = {
         "whatsapp_filename": bool(re.match(r"(VID|IMG)-\d{8}-WA\d{4}",
                                            filename or "")),
         "telegram_filename": bool(re.match(r"video_\d{4}-\d{2}-\d{2}",
@@ -94,32 +99,37 @@ def messenger_flags(filename: str, meta: dict) -> dict:
 
 # -------------------------------------------------------------- face frames
 
+def _haar_path() -> str:
+    data_dir = getattr(cv2, "data", None)
+    haarcascades = getattr(data_dir, "haarcascades", "") if data_dir else ""
+    return str(haarcascades) + "haarcascade_frontalface_default.xml"
+
+
 class FaceExtractor:
-    def __init__(self, size=None):
+    def __init__(self, size: int | None = None):
         self.size = size or DATA.img_size
         self.backend = "haar"
-        self.det = None
+        self.det: Any = None
+        self._haar: cv2.CascadeClassifier | None = None
         try:
-            from facenet_pytorch import MTCNN
-            import torch
+            import torch  # type: ignore # noqa: F401
+            from facenet_pytorch import MTCNN  # type: ignore
             dev = "cuda" if torch.cuda.is_available() else "cpu"
             self.det = MTCNN(keep_all=True, device=dev, post_process=False)
             self.backend = "mtcnn"
         except Exception:
             try:
-                import mediapipe as mp
+                import mediapipe as mp  # type: ignore
                 self.det = mp.solutions.face_detection.FaceDetection(
                     model_selection=1, min_detection_confidence=0.5)
                 self.backend = "mediapipe"
             except Exception:
-                self.det = cv2.CascadeClassifier(
-                    cv2.data.haarcascades +
-                    "haarcascade_frontalface_default.xml")
+                self.det = cv2.CascadeClassifier(_haar_path())
                 self.backend = "haar"
 
-    def _boxes(self, rgb, min_conf=0.60):
+    def _boxes(self, rgb: np.ndarray, min_conf: float = 0.60):
         h, w = rgb.shape[:2]
-        if self.backend == "mtcnn":
+        if self.backend == "mtcnn" and self.det is not None:
             try:
                 boxes, probs = self.det.detect(rgb)
                 if boxes is not None:
@@ -129,10 +139,10 @@ class FaceExtractor:
                         return valid
             except Exception:
                 pass
-        if self.backend == "mediapipe":
+        if self.backend == "mediapipe" and self.det is not None:
             try:
                 res = self.det.process(rgb)
-                if res.detections:
+                if res and res.detections:
                     out = []
                     for d in res.detections:
                         r = d.location_data.relative_bounding_box
@@ -144,13 +154,12 @@ class FaceExtractor:
             except Exception:
                 pass
         gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
-        if not hasattr(self, "_haar") or self._haar is None:
-            self._haar = cv2.CascadeClassifier(
-                cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+        if self._haar is None:
+            self._haar = cv2.CascadeClassifier(_haar_path())
         faces = self._haar.detectMultiScale(gray, 1.1, 4, minSize=(36, 36))
         return [np.array([x, y, x + fw, y + fh]) for x, y, fw, fh in faces]
 
-    def _crop(self, rgb, box, margin=0.32):
+    def _crop(self, rgb: np.ndarray, box: Any, margin: float = 0.32):
         h, w = rgb.shape[:2]
         x1, y1, x2, y2 = box
         cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
@@ -162,7 +171,7 @@ class FaceExtractor:
         return cv2.resize(rgb[y1:y2, x1:x2], (self.size, self.size),
                           interpolation=cv2.INTER_AREA)
 
-    def extract(self, video_path, max_samples=48):
+    def extract(self, video_path: str, max_samples: int = 48):
         cap = cv2.VideoCapture(video_path)
         total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
         fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
@@ -191,7 +200,7 @@ class FaceExtractor:
         return (np.array(crops) if crops else np.empty((0,))), times, total, fps
 
 
-def thumb(crop, size=104, quality=72):
+def thumb(crop: np.ndarray, size: int = 104, quality: int = 72) -> str | None:
     small = cv2.resize(crop, (size, size), interpolation=cv2.INTER_AREA)
     ok, buf = cv2.imencode(".jpg", small[:, :, ::-1],
                            [int(cv2.IMWRITE_JPEG_QUALITY), quality])
@@ -206,25 +215,35 @@ class Engine:
     def __init__(self, checkpoint: str | None = None):
         self.faces = FaceExtractor()
         self.mode = "heuristic"
-        self.model = None
+        self.model: Any = None
         self.device = "cpu"
         self.threshold = 0.50
         self.temperature = 1.0
-        self.backbone = None
+        self.backbone: str | None = None
         self.clip_len = DATA.clip_len
         self.model_version = "heuristic-1.0"
         self._load(checkpoint or INFER.checkpoint)
 
-    def _load(self, path):
-        p = Path(path)
-        if not p.exists():
-            print(f"[engine] no checkpoint at {p} - using the classical "
-                  f"baseline. Copy best.pt there, or set DEEPFAKE_RUNS.")
+    def _load(self, path: str | Path | None):
+        p = Path(path) if path else None
+        if not p or not p.exists():
+            for cand in [
+                ROOT / "runs" / "v1" / "best.pt",
+                ROOT / "runs" / "best.pt",
+                ROOT.parent / "deepfake_system" / "runs" / "v1" / "best.pt",
+                Path("runs/v1/best.pt"),
+                Path("runs/best.pt")
+            ]:
+                if cand.exists():
+                    p = cand.resolve()
+                    break
+        if not p or not p.exists():
+            print(f"[engine] no checkpoint found at {path} - using classical baseline.")
             return
         try:
-            import torch
-            from config import MODEL
-            from models.net import build_model
+            import torch  # type: ignore
+            from config import MODEL  # type: ignore
+            from models.net import build_model  # type: ignore
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
             ck = torch.load(p, map_location=self.device)
             cfg = ck.get("config", {})
@@ -254,7 +273,7 @@ class Engine:
             print(f"[engine] checkpoint present but did not load: {exc}")
             self.mode = "heuristic"
 
-    def status(self):
+    def status(self) -> dict[str, Any]:
         return {"mode": self.mode, "device": self.device,
                 "backbone": self.backbone, "threshold": self.threshold,
                 "face_backend": self.faces.backend,
@@ -264,9 +283,9 @@ class Engine:
                 "model_version": self.model_version}
 
     # ---------------------------------------------------------- model path
-    def _model_scores(self, crops):
-        import torch
-        from data.dataset import MEAN, STD
+    def _model_scores(self, crops: np.ndarray):
+        import torch  # type: ignore
+        from data.dataset import MEAN, STD  # type: ignore
         T = self.clip_len
         n = len(crops)
         if n < T:
@@ -276,12 +295,15 @@ class Engine:
                                            max(1, n - T + 1))).astype(int)
         logits, frame_scores = [], np.zeros(n)
         counts = np.zeros(n) + 1e-6
+        if self.model is None:
+            return np.array([]), []
         with torch.no_grad():
             for s in sorted(set(starts.tolist())):
                 clip = crops[s:s + T].astype(np.float32) / 255.0
                 clip = (clip - MEAN) / STD
                 x = torch.from_numpy(clip).permute(0, 3, 1, 2).unsqueeze(0)
                 x = x.to(self.device)
+                assert self.model is not None
                 logit, frame_logit = self.model(x)
                 if INFER.tta:
                     # Fast 2-View Flip TTA for variance reduction & rapid CPU inference
@@ -296,9 +318,9 @@ class Engine:
         return np.array(logits), (frame_scores / counts).tolist()
 
     # ------------------------------------------------------------- analyse
-    def analyse(self, video_path: str, filename: str = "") -> dict:
+    def analyse(self, video_path: str, filename: str = "") -> dict[str, Any]:
         t0 = time.time()
-        timings = {}
+        timings: dict[str, float] = {}
 
         meta = probe(video_path)
         prov = messenger_flags(filename, meta)
@@ -312,7 +334,8 @@ class Engine:
         crops, times, total_frames, fps = self.faces.extract(video_path)
         timings["face_extraction"] = round(time.time() - t, 3)
 
-        notes, features = [], {}
+        notes: list[str] = []
+        features: dict[str, Any] = {}
 
         if len(crops) == 0:
             return {"label": "no_face", "probability": None,
@@ -344,7 +367,7 @@ class Engine:
             clips_scored = len(logits)
         else:
             result = heuristic.score_clip(crops)
-            prob = result["score"]
+            prob = float(result["score"])
             features = result["features"]
             frame_scores = heuristic.per_frame_scores(crops)
             spread = float(np.std(frame_scores)) if frame_scores else 0.15
@@ -393,7 +416,7 @@ class Engine:
             voice_synth = float(audio_report.get("voice", {}).get("synthetic_indicator", 0.0) or 0.0)
             high_flat = float(audio_report.get("voice", {}).get("high_band_flatness", 0.0) or 0.0)
             p90_frame = float(np.percentile(frame_scores, 90)) if len(frame_scores) > 4 else float(max(frame_scores or [0]))
-            
+
             if lip_reading == "mismatched":
                 band += 0.05
                 prob = max(prob, 0.72)
@@ -443,7 +466,7 @@ class Engine:
         return {"label": label, "probability": round(prob, 4),
                 "confidence_band": [round(lo, 4), round(hi, 4)],
                 "threshold": self.threshold, "engine": self.mode,
-                "backbone": self.backbone, "faces_found": int(len(crops)),
+                "backbone": self.backbone, "faces_found": len(crops),
                 "clips_scored": clips_scored, "frames": frames,
                 "provenance": prov, "media": meta, "features": features,
                 "content_credentials": credentials, "audio": audio_report,

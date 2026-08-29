@@ -15,6 +15,7 @@ import re
 import sys
 import tempfile
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
@@ -106,10 +107,10 @@ class UrlRequest(BaseModel):
 
 
 def _download_stream_url(url: str, out_path: str) -> tuple[str, str]:
-    import yt_dlp
+    import yt_dlp  # type: ignore
     base = os.path.splitext(out_path)[0]
     outtmpl = base + '.%(ext)s'
-    ydl_opts = {
+    ydl_opts: Any = {
         'format': 'bestvideo[height<=720]+bestaudio/best[height<=720]/best',
         'outtmpl': outtmpl,
         'merge_output_format': 'mp4',
@@ -120,8 +121,8 @@ def _download_stream_url(url: str, out_path: str) -> tuple[str, str]:
         'no_warnings': True,
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        title = info.get('title', 'stream_video')
+        info = ydl.extract_info(url, download=True) or {}
+        title: str = str(info.get('title') or 'stream_video')
         actual_path = out_path
         if not os.path.exists(actual_path) or os.path.getsize(actual_path) == 0:
             for ext in [".mp4", ".mkv", ".webm"]:
@@ -262,6 +263,13 @@ app.add_middleware(
 )
 app.include_router(router, prefix="/api")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
+
+
+@app.on_event("startup")
+def on_startup():
+    eng = get_engine()
+    print(f"[DEFAULT ENGINE] Neural Deepfake Model Loaded: {eng.model_version} | Mode: {eng.mode} | Backbone: {eng.backbone}")
+    get_store()
 
 
 @app.get("/")
