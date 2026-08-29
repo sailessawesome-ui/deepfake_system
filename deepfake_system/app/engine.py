@@ -408,24 +408,24 @@ class Engine:
         if audio_report.get("available") is False and audio_report.get("reason"):
             notes.append(audio_report["reason"])
         # Multimodal Audio-Visual Fusion (IR 3.4.1 FR1)
+        # If visual cues are attenuated by messenger recompression, but the audio
+        # branch detects explicit lip-sync mismatch or synthetic voice cloning,
+        # fuse the audio evidence into the composite manipulation probability.
         if audio_report.get("available"):
             lip_reading = audio_report.get("lipsync", {}).get("reading")
             voice_synth = float(audio_report.get("voice", {}).get("synthetic_indicator", 0.0) or 0.0)
             high_flat = float(audio_report.get("voice", {}).get("high_band_flatness", 0.0) or 0.0)
+            p90_frame = float(np.percentile(frame_scores, 90)) if len(frame_scores) > 4 else float(max(frame_scores or [0]))
 
-            audio_anomaly = 0.0
             if lip_reading == "mismatched":
-                audio_anomaly = max(audio_anomaly, 0.75)
-                band += 0.04
-            if voice_synth >= 0.65:
-                audio_anomaly = max(audio_anomaly, voice_synth)
-                band += 0.04
-            if high_flat >= 0.75:
-                audio_anomaly = max(audio_anomaly, high_flat * 0.7)
-
-            if audio_anomaly > 0.5:
-                # Smooth continuous fusion: 85% neural visual model, 15% audio anomaly signal
-                prob = float(0.85 * prob + 0.15 * audio_anomaly)
+                band += 0.05
+                prob = max(prob, 0.72)
+            elif voice_synth >= 0.58 or high_flat >= 0.65:
+                band += 0.05
+                prob = max(prob, 0.68)
+            elif prov.get("likely_recompressed") and p90_frame >= 0.55:
+                band += 0.06
+                prob = max(prob, 0.60)
 
         lo, hi = max(0.0, prob - band), min(1.0, prob + band)
         straddles = lo <= self.threshold <= hi
