@@ -98,6 +98,82 @@ def reports_by_hash(sha256: str):
     return {"reports": store.find_by_hash(sha256.lower())}
 
 
+from pydantic import BaseModel
+
+
+class UrlRequest(BaseModel):
+    url: str
+
+
+def _download_stream_url(url: str, out_path: str) -> str:
+    import yt_dlp
+    ydl_opts = {
+        'format': 'bestvideo[height<=720]+bestaudio/best[height<=720]/best',
+        'outtmpl': out_path,
+        'merge_output_format': 'mp4',
+        'max_filesize': MAX_BYTES,
+        'quiet': True,
+        'no_warnings': True,
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+        return info.get('title', 'stream_video')
+
+
+@router.post("/analyse-url")
+async def analyse_url(req: UrlRequest):
+    url = req.url.strip()
+    if not url:
+        raise HTTPException(400, "URL is required.")
+
+    tmp_base = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+    tmp_path = tmp_base.name
+    tmp_base.close()
+
+    try:
+        title = await run_in_threadpool(_download_stream_url, url, tmp_path)
+
+        import hashlib
+        sha256 = hashlib.sha256()
+        size = 0
+        with open(tmp_path, "rb") as f:
+            while chunk := f.read(1 << 20):
+                size += len(chunk)
+                sha256.update(chunk)
+        digest = sha256.hexdigest()
+
+        engine = get_engine()
+        async with _slots:
+            result = await run_in_threadpool(engine.analyse, tmp_path, f"{title}.mp4")
+
+        result["filename"] = f"{title}.mp4"
+        result["size_bytes"] = size
+        result["evidence_sha256"] = digest
+        result["source_url"] = url
+
+        store = get_store()
+        if store:
+            record = build_record(result, result["filename"], engine.model_version)
+            result["storage"] = store.save(record)
+            result["report_id"] = record["report_id"]
+            prior = [r for r in store.find_by_hash(digest)
+                     if r.get("report_id") != record["report_id"]]
+            if prior:
+                result["seen_before"] = len(prior)
+
+        global _LATEST_RESULT
+        _LATEST_RESULT = result
+        return result
+    except Exception as exc:
+        raise HTTPException(400, f"Could not stream video from {url}: {exc}")
+    finally:
+        try:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+        except OSError:
+            pass
+
+
 @router.post("/analyse")
 async def analyse(video: UploadFile = File(...)):
     name = video.filename or ""

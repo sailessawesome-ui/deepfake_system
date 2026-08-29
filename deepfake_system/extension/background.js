@@ -2,9 +2,9 @@
    "ideally in the form of a browser extension" (76.8% of respondents),
    compatible with Instagram, Facebook, TikTok and X.
 
-   The extension service worker fetches media buffers with full extension
-   host permissions (bypassing webpage CSP) and posts them directly to
-   the local verification server (http://127.0.0.1:8000). */
+   Seamlessly handles direct video containers AND encrypted DASH streaming
+   platforms (YouTube, Facebook, Instagram, TikTok, X) via server-side
+   ingestion (yt-dlp) and extension background workers. */
 
 const DEFAULTS = { server: "http://127.0.0.1:8000" };
 
@@ -25,51 +25,63 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== "check-video") return;
   const { server } = await chrome.storage.sync.get(DEFAULTS);
   const pageHost = tab?.url ? new URL(tab.url).hostname : "media";
-  notify("Deepfake Forensics", `Locating media on ${pageHost}...`);
+  notify("Deepfake Forensics", `Ingesting video from ${pageHost}...`);
 
   try {
-    // 1. Locate video URL from DOM (runs inside page)
+    // 1. Locate video URL or determine platform streaming type
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: locateVideoOnPage,
-      args: [info.srcUrl || ""]
+      args: [info.srcUrl || "", tab.url || ""]
     });
 
     if (!result || result.error) {
       throw new Error(result?.error || "No active video stream located on this page.");
     }
 
-    notify("Downloading Evidence", `Extracting stream container from ${result.domain || pageHost}...`);
+    let data;
 
-    // 2. Fetch media buffer in Extension Service Worker (bypasses webpage CSP restrictions!)
-    const mediaRes = await fetch(result.url, { mode: "cors" }).catch(() => fetch(result.url));
-    if (!mediaRes.ok) {
-      throw new Error(`Media CDN returned HTTP ${mediaRes.status}. The video URL may be expired or DRM protected.`);
+    // 2A. Social / DASH platforms (YouTube, Facebook, TikTok, Instagram, X): Ingest via URL Engine
+    if (result.useUrlEngine) {
+      notify("Extracting Media", `Streaming video container from ${result.domain || pageHost}...`);
+      const res = await fetch(`${server}/api/analyse-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: result.pageUrl })
+      });
+      data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Could not stream video from this URL.");
+    } else {
+      // 2B. Direct Media File: Fetch buffer in Extension Worker
+      notify("Downloading Evidence", `Extracting media buffer from ${result.domain || pageHost}...`);
+      const mediaRes = await fetch(result.url, { mode: "cors" }).catch(() => fetch(result.url));
+      if (!mediaRes.ok) {
+        throw new Error(`Media CDN returned HTTP ${mediaRes.status}. The video URL may be expired or DRM protected.`);
+      }
+
+      const blob = await mediaRes.blob();
+      if (blob.size < 1000) {
+        throw new Error("Extracted video stream is empty or corrupt.");
+      }
+      if (blob.size > 250 * 1024 * 1024) {
+        throw new Error("Video exceeds maximum 250 MB size limit.");
+      }
+
+      notify("Analyzing Media", "Running spatial-temporal & multimodal audio verification...");
+
+      const filename = `media_${Date.now()}.${result.ext || "mp4"}`;
+      const body = new FormData();
+      body.append("video", blob, filename);
+
+      const res = await fetch(`${server}/api/analyse`, { method: "POST", body });
+      data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "The verification engine rejected the media file.");
     }
-
-    const blob = await mediaRes.blob();
-    if (blob.size < 1000) {
-      throw new Error("Extracted video stream is empty or corrupt.");
-    }
-    if (blob.size > 250 * 1024 * 1024) {
-      throw new Error("Video exceeds maximum 250 MB size limit.");
-    }
-
-    notify("Analyzing Media", "Running spatial-temporal & multimodal audio verification...");
-
-    const filename = `media_${Date.now()}.${result.ext || "mp4"}`;
-    const body = new FormData();
-    body.append("video", blob, filename);
-
-    // 3. Post to local deepfake verification engine
-    const res = await fetch(`${server}/api/analyse`, { method: "POST", body });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "The verification engine rejected the media file.");
 
     await chrome.storage.local.set({ lastResult: data });
     const pct = data.probability == null ? "—" : `${Math.round(data.probability * 100)}%`;
     const labelHeader = labelText(data.label);
-    notify(`${labelHeader} (${pct})`, `${data.faces_found || 0} faces isolated · Forensic report ready`);
+    notify(`${labelHeader} (${pct})`, `${data.faces_found || 0} faces isolated · Full report ready`);
 
     // Open the Forensic Lab Web App pre-loaded with the full analysis report!
     chrome.tabs.create({ url: `${server}/?view=latest`, active: true });
@@ -80,19 +92,27 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 });
 
-/* Inspects DOM to locate the video URL without triggering CSP restrictions inside page */
-function locateVideoOnPage(passedSrc) {
+/* Inspects DOM to locate video URL or flag social media DASH platforms */
+function locateVideoOnPage(passedSrc, currentTabUrl) {
   try {
     let src = passedSrc;
+    const pageUrl = window.location.href || currentTabUrl;
+    const domain = window.location.hostname || "media";
 
-    // If no direct srcUrl from right-click (e.g. clicked on Facebook overlay div), find video in DOM
+    const isSocialHost = /youtube\.com|youtu\.be|facebook\.com|instagram\.com|tiktok\.com|twitter\.com|x\.com/i.test(pageUrl);
+
+    // If on YouTube, Facebook, Instagram, TikTok, X, route directly to URL Engine for perfect stream extraction!
+    if (isSocialHost) {
+      return { useUrlEngine: true, pageUrl, domain };
+    }
+
+    // Otherwise check for DOM video element
     if (!src || src.startsWith("blob:")) {
       const videos = Array.from(document.querySelectorAll("video"));
       if (videos.length === 0) {
         return { error: "No video player detected on this page." };
       }
 
-      // Prioritize currently playing or visible video
       let bestVideo = videos.find(v => !v.paused && v.currentTime > 0) ||
                       videos.find(v => v.offsetWidth > 100 && v.offsetHeight > 100) ||
                       videos[0];
@@ -109,9 +129,7 @@ function locateVideoOnPage(passedSrc) {
     }
 
     if (src.startsWith("blob:")) {
-      return {
-        error: "This platform (e.g. YouTube/FB DASH) uses encrypted media chunks. Download the MP4 clip or save the video, then drop it into the Forensic Lab Web App at http://localhost:8000."
-      };
+      return { useUrlEngine: true, pageUrl, domain };
     }
 
     let ext = "mp4";
@@ -121,12 +139,7 @@ function locateVideoOnPage(passedSrc) {
       if (u.pathname.endsWith(".mov")) ext = "mov";
     } catch (_) {}
 
-    let domain = "";
-    try {
-      domain = new URL(src).hostname;
-    } catch (_) {}
-
-    return { url: src, ext, domain };
+    return { useUrlEngine: false, url: src, ext, domain, pageUrl };
   } catch (e) {
     return { error: e.message };
   }
