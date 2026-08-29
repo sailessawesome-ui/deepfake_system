@@ -233,6 +233,19 @@
         <ul class="recent-list" id="recent"></ul>
         <p class="rail-foot">Held in active session RAM. Cleared upon session termination.</p>
       </section>
+
+      <!-- Persisted case history. The findings survive the session; the
+           media does not (IR 3.4.1 zero retention). -->
+      <section class="recent" id="storedWrap" hidden>
+        <div class="recent-head">
+          <h3 class="rail-h">CASE HISTORY</h3>
+          <span class="recent-count" id="storedCount">0</span>
+        </div>
+        <ul class="recent-list" id="storedList"></ul>
+        <p class="rail-foot" id="storedFoot">
+          Findings retained in AWS DynamoDB. Evidence media is never stored.
+        </p>
+      </section>
     </aside>
 
     <!-- ── Right Stage: Forensic Analysis & Verdicts ──────────────── -->

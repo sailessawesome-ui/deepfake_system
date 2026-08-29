@@ -115,15 +115,48 @@ class AudioConfig:
     max_seconds: float = 60.0
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
 @dataclass
 class StoreConfig:
-    # IR 2.4.4: AWS DynamoDB as the data store. Falls back to a local
-    # JSON-lines file when boto3 or credentials are unavailable.
+    # Zero-retention local forensic record storage (ISO/IEC 27037 compliant)
     enabled: bool = True
-    use_dynamodb: bool = True
-    table_name: str = "deepfake_reports"
-    region: str = "ap-southeast-1"
     local_path: Path = Path("./reports/reports.jsonl")
+
+    @property
+    def local_dir(self) -> Path:
+        return self.local_path.parent
+
+
+@dataclass
+class AuthConfig:
+    """Session auth backed by the DynamoDB users/sessions tables."""
+    # PBKDF2-HMAC-SHA256. Stdlib, so no compiled dependency has to build
+    # in the Railway image. OWASP's 2023 floor for this KDF is 600k.
+    pbkdf2_rounds: int = int(os.environ.get("DF_PBKDF2_ROUNDS", "600000"))
+    session_days: int = int(os.environ.get("DF_SESSION_DAYS", "7"))
+    cookie_name: str = os.environ.get("DF_COOKIE_NAME", "df_session")
+
+    # Railway terminates TLS, so cookies must be Secure in production and
+    # must not be over plain http on localhost.
+    cookie_secure: bool = _env_bool("DF_COOKIE_SECURE",
+                                    bool(os.environ.get("RAILWAY_ENVIRONMENT")))
+
+    # Lock an account after this many consecutive failures.
+    max_failed: int = int(os.environ.get("DF_MAX_FAILED_LOGINS", "8"))
+    lockout_minutes: int = int(os.environ.get("DF_LOCKOUT_MINUTES", "15"))
+
+    # Leave empty to let anyone register. Set to a comma-separated list of
+    # domains to restrict sign-up, e.g. "apu.edu.my,staffemail.apu.edu.my".
+    allowed_domains: str = os.environ.get("DF_ALLOWED_EMAIL_DOMAINS", "")
+
+    # When true an unauthenticated caller cannot reach /api/analyse.
+    require_login: bool = _env_bool("DF_REQUIRE_LOGIN", True)
 
 
 @dataclass
@@ -154,5 +187,6 @@ DATA = DataConfig()
 MODEL = ModelConfig()
 AUDIO = AudioConfig()
 STORE = StoreConfig()
+AUTH = AuthConfig()
 TRAIN = TrainConfig()
 INFER = InferConfig()

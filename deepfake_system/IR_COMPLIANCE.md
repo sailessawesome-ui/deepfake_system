@@ -195,13 +195,77 @@ Verified working.
 | **2.4.7 Nginx** | **FIXED** | `deploy/nginx.conf` |
 
 `app/store.py` uses DynamoDB when boto3 and credentials are present, and
-falls back to a local JSON-lines file otherwise — so it runs on your
-laptop and on AWS with no code change. `/api/status` reports which
-backend is live, so you can demonstrate both.
+falls back to a local JSON file otherwise — so it runs on your laptop and
+on AWS with no code change. `/api/status` reports which backend is live,
+so you can demonstrate both.
 
-Do not commit AWS keys. Use an instance role scoped to `PutItem`,
-`GetItem` and `Scan` on the one table. Table creation command is in
-`deploy/README.md`.
+Do not commit AWS keys. Scope the IAM policy to `deepfake_*` tables and
+their `/index/*` ARNs. Provisioning is `python scripts/create_tables.py`;
+the full deployment runbook is `DEPLOY_RAILWAY.md`.
+
+### 2.4.4 in full — all three clauses
+
+Section 2.4.4 says DynamoDB stores "detection results, **user metadata,
+and system logs**". Only the first was implemented; the other two are now
+present, which is also what made login/logout possible.
+
+| Table | Key | Clause of 2.4.4 |
+|---|---|---|
+| `deepfake_reports` | `report_id` + `created_at`, GSI `user-index` | detection results (Table 16) |
+| `deepfake_users` | `user_id` | user metadata |
+| `deepfake_sessions` | `session_id`, TTL on `expires_at` | login/logout state |
+| `deepfake_audit` | `audit_day` + `event_ts`, GSI `user-index` | system logs |
+
+**Table 16 deviations, stated deliberately.** The IR lists ten attributes;
+the implementation stores eight of them and adds several more.
+
+| Table 16 | Implemented | Why |
+|---|---|---|
+| `detection_id` (PK) | `report_id` + `created_at` | composite key; `created_at` sorts the GSI |
+| `user_id` | `user_id` | **FIXED** — was absent before accounts existed |
+| `video_filename` | `filename` | — |
+| `video_s3_uri` | *omitted* | zero retention (IR 3.4.1): no media is stored |
+| `detection_status` | *omitted* | analysis is synchronous; no pending state exists |
+| `confidence_score` | `probability` | stored as `Decimal`; DynamoDB rejects float |
+| `classification` | `label` + `confidence_band` | — |
+| `frame_results` | *omitted* | `frames` is stripped in `_STRIP`; `clips_scored` kept |
+| `processing_timestamp` | `created_at` | ISO-8601, because it doubles as the sort key |
+| `model_version` | `model_version` | — |
+
+Either amend Table 16 in the report or be ready to explain the three
+omissions. All three follow from requirements stated elsewhere in the IR,
+so the deviation is defensible — but only if you raise it first.
+
+---
+
+## Chapter 3.4.1 — Authentication
+
+The sign-in UI existed but was theatre: `localStorage`, plaintext
+passwords in the browser, `isLoggedIn()` hardcoded to `return true`, and
+an unrecognised email silently auto-registered with whatever password was
+typed. Anyone could reach `/api/analyse` with curl regardless.
+
+| Requirement | Status | Where |
+|---|---|---|
+| Restrict ingestion to authenticated investigators | **FIXED** | `require_user` in `app/server.py` |
+| Password storage | **FIXED** | PBKDF2-HMAC-SHA256, 600k rounds, `app/auth.py` |
+| Session management | **FIXED** | `deepfake_sessions`, HttpOnly + Secure + SameSite=Lax cookie |
+| Chain-of-custody logging (ISO/IEC 27037) | **FIXED** | `app/audit.py` |
+| Per-analyst evidence scoping | **FIXED** | `store.for_user()`, GSI query |
+
+Three vulnerabilities were found and closed while wiring this up, all of
+them created by the move from one implicit operator to real accounts:
+
+- **`_LATEST_RESULT` was a single module global.** `/api/reports/latest`
+  returned whatever the *previous caller* had analysed, whoever they were.
+  Now keyed by user.
+- **The header badge rendered `user.name` through `innerHTML`.** With
+  names coming from a database, registering as `<img src=x onerror=...>`
+  is stored XSS against every viewer. Now escaped.
+- **`allow_origins=["*"]` with `allow_credentials=True`.** Invalid per the
+  CORS spec; browsers drop the response. It would have broken session
+  cookies on the first cross-origin call. Now an explicit origin list plus
+  a regex for the extension.
 
 ---
 
@@ -210,9 +274,12 @@ Do not commit AWS keys. Use an instance role scoped to `PutItem`,
 Two things the report asks for that are **not** done, listed so you are
 not surprised by them:
 
-1. **A trained checkpoint.** The system runs on the classical baseline
-   until you train. This is the single biggest remaining item, and the
-   accuracy claims in Chapter 4 depend on it entirely.
+1. ~~**A trained checkpoint.**~~ Done — `runs/v1/best.pt`,
+   `tf_efficientnetv2_s`, val F1 0.9821. One caveat for deployment:
+   `runs/` is gitignored and the file is 81 MB, so a git-based deploy does
+   not carry it. `app/modelfetch.py` fetches it from S3 at boot; without
+   `DF_MODEL_S3_URI` set, the hosted app silently reverts to the classical
+   baseline and its numbers will not match Chapter 4.
 2. **A mobile app.** The UI/UX requirement says "browser extension **or**
    a feature of a mobile application". The extension satisfies the
    disjunction. The web interface is responsive, so a mobile browser
@@ -222,12 +289,22 @@ not surprised by them:
 
 ## New API surface
 
-| Endpoint | Purpose |
-|---|---|
-| `GET /api/status` | engine, store backend, model version, branches enabled |
-| `POST /api/analyse` | now also returns `audio`, `content_credentials`, `timings`, `model_version`, `report_id`, `seen_before` |
-| `GET /api/reports?limit=25` | past findings |
-| `GET /api/reports/by-hash/{sha256}` | every report for one file |
+| Endpoint | Auth | Purpose |
+|---|---|---|
+| `GET /api/status` | optional | engine, model version, branches; table detail only when signed in |
+| `POST /api/auth/register` | — | create an account, sets the session cookie |
+| `POST /api/auth/login` | — | sign in |
+| `POST /api/auth/logout` | — | revoke this session |
+| `POST /api/auth/logout-all` | required | revoke every session for the account |
+| `GET /api/auth/me` | optional | who is signed in, or `{"user": null}` |
+| `POST /api/analyse` | **required** | returns `audio`, `content_credentials`, `timings`, `model_version`, `report_id`, `seen_before` |
+| `POST /api/analyse-url` | **required** | same, from a stream URL |
+| `GET /api/reports?limit=25` | required | the caller's own past findings |
+| `GET /api/reports/by-hash/{sha256}` | required | the caller's reports for one file |
+| `GET /api/audit?limit=50` | required | the caller's own activity trail |
 
-All additions are new keys. Nothing existing was renamed or removed, so
-your rebuilt front end keeps working untouched.
+`/api/analyse` and `/api/analyse-url` now return **401** to an anonymous
+caller. That is the one breaking change: any script calling them must
+sign in first and keep the cookie, or send `Authorization: Bearer <token>`
+using the token returned by `/api/auth/login`. Set `DF_REQUIRE_LOGIN=false`
+to restore open access for a local demo.

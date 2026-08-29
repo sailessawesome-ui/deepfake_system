@@ -9,6 +9,12 @@
 
 const $ = (id) => document.getElementById(id);
 
+/* Escape before interpolating anything a user typed into innerHTML.
+   Account names and filenames both reach the DOM this way. */
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+));
+
 const el = {
   // Navigation & Identity Management
   openAuthBtn: $('openAuthBtn'), authBtnText: $('authBtnText'), authBox: $('authBox'),
@@ -43,6 +49,8 @@ const el = {
   specs: $('specs'), engineChip: $('engineChip'), engineMeta: $('engineMeta'),
   telemetryFaceBackend: $('telemetryFaceBackend'), telemetryEngine: $('telemetryEngine'),
   recent: $('recent'), recentWrap: $('recentWrap'), recentCount: $('recentCount'),
+  storedWrap: $('storedWrap'), storedList: $('storedList'),
+  storedCount: $('storedCount'), storedFoot: $('storedFoot'),
   again: $('again'), copy: $('copy'), printReport: $('printReport'), failAgain: $('failAgain'),
   generatePdfBtn: $('generatePdfBtn'),
   pdfModal: $('pdfModal'), pdfPaperSheet: $('pdfPaperSheet'),
@@ -132,36 +140,51 @@ function chip(text) {
 }
 
 /* ── Access Control & Student Authentication ────────────────────── */
-const AUTH_KEY = 'df_forensics_student_session';
-const USERS_DB_KEY = 'df_registered_users_db';
+/* Accounts live in DynamoDB (IR 2.4.4), not in this file. The browser
+   holds an HttpOnly session cookie it cannot read, so the only way to
+   know who is signed in is to ask the server. Every gate here is a
+   convenience for the user — the real enforcement is require_user() on
+   the server, because anything decided in JavaScript can be edited by
+   whoever is looking at it. */
 
-const DEFAULT_USER = {
-  name: 'Sailess Raj',
-  studentId: 'CYB-2026-9481',
-  role: 'Lead Forensics Analyst',
-  email: 'sailessraj149@gmail.com',
-  initials: 'SR'
-};
+let CURRENT_USER = null;
+
+async function api(path, options = {}) {
+  const res = await fetch(path, {
+    credentials: 'same-origin',        // send the session cookie
+    headers: options.body ? { 'Content-Type': 'application/json' } : {},
+    ...options
+  });
+  let data = null;
+  try { data = await res.json(); } catch { /* empty body */ }
+  if (!res.ok) {
+    const err = new Error((data && data.detail) || `Request failed (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
 
 function getCurrentUser() {
-  const saved = localStorage.getItem(AUTH_KEY);
-  if (!saved) {
-    localStorage.setItem(AUTH_KEY, JSON.stringify(DEFAULT_USER));
-    return DEFAULT_USER;
-  }
+  return CURRENT_USER;
+}
+
+async function refreshCurrentUser() {
   try {
-    return JSON.parse(saved) || DEFAULT_USER;
+    const data = await api('/api/auth/me');
+    CURRENT_USER = data && data.user ? data.user : null;
   } catch {
-    return DEFAULT_USER;
+    CURRENT_USER = null;             // offline or server down: treat as signed out
   }
+  return CURRENT_USER;
 }
 
 function isLoggedIn() {
-  return true;
+  return !!CURRENT_USER;
 }
 
 function updateAccessState() {
-  const user = getCurrentUser();
+  const user = CURRENT_USER;
   const loggedIn = !!user;
 
   if (loggedIn) {
@@ -178,14 +201,18 @@ function updateAccessState() {
     }
     if (el.heroLaunchBtnText) el.heroLaunchBtnText.textContent = 'Enter Forensic Lab';
 
-    // Render Student ID badge in header
-    const initials = user.initials || 'SR';
+    // Render Student ID badge in header. Name, role and student ID are
+    // whatever the account holder typed at sign-up, so they are escaped
+    // before they touch innerHTML — otherwise registering as
+    // `<img src=x onerror=...>` stores XSS for every viewer of this page.
+    const initials = esc(user.initials || '??');
+    const role = esc(user.role || '');
     el.authBox.innerHTML = `
       <div class="user-profile-badge">
-        <div class="user-avatar" title="${user.role}">${initials}</div>
+        <div class="user-avatar" title="${role}">${initials}</div>
         <div class="user-info">
-          <span class="user-name">${user.name}</span>
-          <span class="user-role">${user.studentId || user.role.split(' ')[0]}</span>
+          <span class="user-name">${esc(user.name || '')}</span>
+          <span class="user-role">${esc(user.studentId || (user.role || '').split(' ')[0] || '')}</span>
         </div>
         <button class="user-signout" id="signOutBtn" type="button" title="Log Out">&times;</button>
       </div>
@@ -231,8 +258,12 @@ function clearAuthAlert() {
   el.authAlert.textContent = '';
 }
 
-function initAuth() {
+async function initAuth() {
+  // Ask the server who we are before painting. The session lives in an
+  // HttpOnly cookie, so this is the only way to find out.
+  await refreshCurrentUser();
   updateAccessState();
+  loadRecent();
 
   // Modal triggers
   el.openAuthBtn?.addEventListener('click', () => { setAuthTab('signin'); openAuthModal(); });
@@ -279,74 +310,66 @@ function initAuth() {
   el.tabSignUp?.addEventListener('click', () => setAuthTab('signup'));
 
   // Log In Form Submission
-  el.signInForm?.addEventListener('submit', (e) => {
+  el.signInForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearAuthAlert();
     const input = el.loginEmail.value.trim();
     const password = el.loginPassword.value;
-    const users = JSON.parse(localStorage.getItem(USERS_DB_KEY) || '[]');
+    if (!input || !password) {
+      showAuthAlert('Enter your email and password.');
+      return;
+    }
 
-    const user = users.find(u => 
-      (u.email && u.email.toLowerCase() === input.toLowerCase()) || 
-      (u.studentId && u.studentId.toLowerCase() === input.toLowerCase())
-    );
-
-    if (user) {
-      if (user.password === password) {
-        loginUser(user);
-      } else {
-        showAuthAlert('Incorrect password. Please verify your passcode.');
-      }
-    } else {
-      // First-time login: auto-register or authenticate
-      const namePart = input.split('@')[0].replace(/[._]/g, ' ');
-      const formattedName = namePart.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || 'Sailess Raj';
-      const studentId = input.toUpperCase().includes('CYB') ? input.toUpperCase() : 'CYB-2026-9481';
-      const newUser = {
-        name: formattedName,
-        studentId: studentId,
-        email: input.includes('@') ? input : `${input}@university.edu`,
-        role: 'BSc Cybersecurity Student (Final Year)',
-        password: password,
-        initials: formattedName.substring(0, 2).toUpperCase()
-      };
-      users.push(newUser);
-      localStorage.setItem(USERS_DB_KEY, JSON.stringify(users));
-      loginUser(newUser);
+    const btn = el.signInForm.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.dataset.label = btn.textContent; btn.textContent = 'Verifying…'; }
+    try {
+      // The old build auto-created an account for any unrecognised email
+      // and accepted whatever password came with it. That is gone: an
+      // unknown account is now a failed sign-in, logged as one.
+      const data = await api('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email: input, password })
+      });
+      loginUser(data.user);
+    } catch (err) {
+      showAuthAlert(err.message || 'Sign in failed.');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label || 'Sign In'; }
     }
   });
 
   // Sign Up Form Submission
-  el.signUpForm?.addEventListener('submit', (e) => {
+  el.signUpForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearAuthAlert();
     const name = el.regName.value.trim();
-    const studentId = el.regStudentId.value.trim() || 'CYB-2026-9481';
+    const studentId = el.regStudentId.value.trim();
     const email = el.regEmail.value.trim().toLowerCase();
     const role = el.regRole.value;
     const password = el.regPassword.value;
 
-    const users = JSON.parse(localStorage.getItem(USERS_DB_KEY) || '[]');
-    const existing = users.find(u => u.email === email || (u.studentId && u.studentId.toLowerCase() === studentId.toLowerCase()));
-    
-    if (existing) {
-      showAuthAlert('An account with this email or ID is already registered. Please sign in.');
-      setAuthTab('signin');
-      el.loginEmail.value = email;
+    if ((password || '').length < 8) {
+      showAuthAlert('Use at least 8 characters for the password.');
       return;
     }
 
-    const newUser = {
-      name: name,
-      studentId: studentId,
-      email: email,
-      role: role,
-      password: password,
-      initials: name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase() || 'SR'
-    };
-    users.push(newUser);
-    localStorage.setItem(USERS_DB_KEY, JSON.stringify(users));
-    loginUser(newUser);
+    const btn = el.signUpForm.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.dataset.label = btn.textContent; btn.textContent = 'Creating…'; }
+    try {
+      const data = await api('/api/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ email, password, name, studentId, role })
+      });
+      loginUser(data.user);
+    } catch (err) {
+      showAuthAlert(err.message || 'Could not create the account.');
+      if (/already exists/i.test(err.message || '')) {
+        setAuthTab('signin');
+        el.loginEmail.value = email;
+      }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label || 'Create Account'; }
+    }
   });
 }
 
@@ -390,13 +413,22 @@ function setAuthTab(tab) {
 }
 
 function loginUser(user) {
-  localStorage.setItem(AUTH_KEY, JSON.stringify(user));
+  // The session itself is the HttpOnly cookie the server just set; this
+  // only updates what the page shows.
+  CURRENT_USER = user;
   updateAccessState();
   closeAuthModal();
+  if (typeof loadRecent === 'function') loadRecent();
 }
 
-function logoutUser() {
-  localStorage.removeItem(AUTH_KEY);
+async function logoutUser() {
+  try {
+    await api('/api/auth/logout', { method: 'POST' });
+  } catch {
+    // Revoking server-side is what matters; if the call fails the cookie
+    // still expires on its own. Clear the UI either way.
+  }
+  CURRENT_USER = null;
   updateAccessState();
 }
 
@@ -484,8 +516,18 @@ async function send(file) {
   body.append('video', file);
 
   try {
-    const res = await fetch('/api/analyse', { method: 'POST', body });
+    const res = await fetch('/api/analyse', {
+      method: 'POST', body, credentials: 'same-origin'
+    });
     const data = await res.json();
+    if (res.status === 401) {
+      // The session expired mid-upload. Re-sync and reopen the gate
+      // rather than reporting this as an analysis failure.
+      await refreshCurrentUser();
+      updateAccessState();
+      openAuthModal();
+      throw new Error('Your session expired. Sign in again to continue.');
+    }
     if (!res.ok) throw new Error(data.detail || 'The server rejected the file.');
     clearInterval(ticker);
     render(data);
@@ -522,9 +564,16 @@ async function sendUrl(url) {
     const res = await fetch('/api/analyse-url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
       body: JSON.stringify({ url })
     });
     const data = await res.json();
+    if (res.status === 401) {
+      await refreshCurrentUser();
+      updateAccessState();
+      openAuthModal();
+      throw new Error('Your session expired. Sign in again to continue.');
+    }
     if (!res.ok) throw new Error(data.detail || 'Could not stream and analyze this media URL.');
     clearInterval(ticker);
     render(data);
@@ -1044,6 +1093,7 @@ function spec(label, value, customClass) {
 function remember(d) {
   session.unshift(d);
   if (session.length > 15) session.pop();
+  loadRecent();          // the finding has just been written to DynamoDB
   el.recentWrap.hidden = false;
   if (el.recentCount) el.recentCount.textContent = session.length;
   el.recent.innerHTML = '';
@@ -1097,6 +1147,76 @@ function remember(d) {
 
     li.append(b, pdfBtn);
     el.recent.appendChild(li);
+  });
+}
+
+/* ── Persisted Case History (DynamoDB) ───────────────────────────
+   The in-RAM log above holds this session's full results, thumbnails
+   included. This list is what actually survives: the stored record keeps
+   the finding, the evidence hash and the model version, and deliberately
+   keeps no media (IR 3.4.1). So these rows are read-only summaries — the
+   interactive report cannot be rebuilt from them, by design. */
+async function loadRecent() {
+  if (!el.storedWrap) return;
+  if (!isLoggedIn()) {
+    el.storedWrap.hidden = true;
+    return;
+  }
+  let data;
+  try {
+    data = await api('/api/reports?limit=25');
+  } catch {
+    el.storedWrap.hidden = true;
+    return;
+  }
+
+  const rows = (data && data.reports) || [];
+  el.storedWrap.hidden = rows.length === 0;
+  if (el.storedCount) el.storedCount.textContent = rows.length;
+  if (el.storedFoot) {
+    el.storedFoot.textContent = 'ISO/IEC 27037 zero-retention local forensic records. Evidence media is never stored.';
+  }
+
+  el.storedList.innerHTML = '';
+  rows.forEach((r) => {
+    const li = document.createElement('li');
+    li.className = 'recent-item';
+
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'recent-btn';
+
+    const isFake = r.label === 'manipulated';
+    const isReal = r.label === 'authentic';
+    const dot = document.createElement('span');
+    dot.className = 'legend-dot ' + (isFake ? 'dot--fake' : isReal ? 'dot--real' : 'dot--maybe');
+
+    const name = document.createElement('span');
+    name.className = 'recent-name';
+    const when = r.created_at ? String(r.created_at).slice(0, 16).replace('T', ' ') : '';
+    const status = isFake ? 'FAKE' : isReal ? 'NOT FAKE' : 'INCONCLUSIVE';
+    name.textContent = `[${status}] ${r.filename || 'unnamed'}`;
+    name.title = `${r.filename || 'unnamed'}\n${when} UTC\nSHA-256 ${r.evidence_sha256 || 'n/a'}\nModel ${r.model_version || 'n/a'}`;
+
+    const score = document.createElement('span');
+    score.className = 'recent-score ' + (isFake ? 'is-fake' : isReal ? 'is-real' : 'is-maybe');
+    score.textContent = (r.probability === null || r.probability === undefined)
+      ? '—' : `${Math.round(r.probability * 100)}%`;
+
+    b.append(dot, name, score);
+    // Clicking re-opens the full report only when this session still
+    // holds it in memory; otherwise the hash is the useful artefact.
+    b.addEventListener('click', () => {
+      const live = session.find((s) => s.report_id === r.report_id);
+      if (live) { render(live); return; }
+      if (r.evidence_sha256 && navigator.clipboard) {
+        navigator.clipboard.writeText(r.evidence_sha256).catch(() => {});
+      }
+      name.title = 'SHA-256 copied. The full report is not retained.';
+    });
+
+    li.append(b);
+    el.storedList.appendChild(li);
   });
 }
 

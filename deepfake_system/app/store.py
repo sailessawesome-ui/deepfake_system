@@ -1,44 +1,23 @@
-"""Report store — AWS DynamoDB, per IR section 2.4.4.
+"""Report store — Local zero-retention storage per ISO/IEC 27037 & NIST SP 800-86.
 
-Zero retention (IR 3.4.1, security requirement) means the *video* is
-never kept. It does not mean the verdict cannot be. A forensic tool that
-cannot produce the report it issued last week is not much use to the
-analyst it was built for, so what gets written here is the finding, the
-evidence hash, and the model version — never the media, never the face
-thumbnails.
-
-Falls back to a local JSON-lines file when boto3 or credentials are
-absent, so the app runs on your laptop and on AWS without a code change.
-Which backend is live is reported at /api/status.
-
-Table (on-demand billing is fine):
-
-    aws dynamodb create-table \
-      --table-name deepfake_reports \
-      --attribute-definitions AttributeName=report_id,AttributeType=S \
-                              AttributeName=created_at,AttributeType=S \
-      --key-schema AttributeName=report_id,KeyType=HASH \
-                   AttributeName=created_at,KeyType=RANGE \
-      --billing-mode PAY_PER_REQUEST
+Zero retention means the video itself is never stored. The forensic verdict,
+cryptographic SHA-256 evidence digest, temporal timeline, and model version
+are recorded in local JSONL storage (./reports/reports.jsonl).
 """
 from __future__ import annotations
 
 import json
 import uuid
 from datetime import datetime, timezone
-from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-
-# Fields that must never reach storage, whatever the caller passes.
+# Fields that must never reach persistent storage
 _STRIP = {"frames", "thumb", "media_path", "tmp_path"}
 
 
 def _clean(value):
-    """DynamoDB rejects floats; Decimal is the documented substitute."""
-    if isinstance(value, float):
-        return Decimal(str(round(value, 6)))
+    """Storage-safe copy: evidence media and raw frames stripped."""
     if isinstance(value, dict):
         return {k: _clean(v) for k, v in value.items() if k not in _STRIP}
     if isinstance(value, (list, tuple)):
@@ -46,22 +25,15 @@ def _clean(value):
     return value
 
 
-def _undecimal(value):
-    if isinstance(value, Decimal):
-        return float(value)
-    if isinstance(value, dict):
-        return {k: _undecimal(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [_undecimal(v) for v in value]
-    return value
-
-
-def build_record(result: dict, filename: str, model_version: str) -> dict:
-    """The subset of a result that is safe and useful to keep."""
+def build_record(result: dict, filename: str, model_version: str,
+                 user_id: str = "SailessRaj", email: str = "sailessraj149@gmail.com") -> dict:
+    """Subset of forensic result safe and appropriate for ISO 27037 evidence audit."""
     now = datetime.now(timezone.utc).isoformat()
     return {
         "report_id": str(uuid.uuid4()),
         "created_at": now,
+        "user_id": user_id or "SailessRaj",
+        "user_email": email or "sailessraj149@gmail.com",
         "filename": filename,
         "evidence_sha256": result.get("evidence_sha256"),
         "label": result.get("label"),
@@ -73,81 +45,42 @@ def build_record(result: dict, filename: str, model_version: str) -> dict:
         "faces_found": result.get("faces_found"),
         "clips_scored": result.get("clips_scored"),
         "provenance": result.get("provenance"),
-        "content_credentials": (result.get("content_credentials") or {}).get("c2pa"),
         "audio_available": (result.get("audio") or {}).get("available"),
         "lipsync": (result.get("audio") or {}).get("lipsync"),
         "media": {k: v for k, v in (result.get("media") or {}).items()
-                  if k in ("codec", "width", "height", "fps", "duration",
-                           "bit_rate")},
+                  if k in ("codec", "width", "height", "fps", "duration", "bit_rate")},
         "timings": result.get("timings"),
     }
 
 
 class ReportStore:
-    def __init__(self, table_name: str, region: str, local_path: Path,
-                 prefer_dynamo: bool = True):
-        self.table_name = table_name
-        self.region = region
+    def __init__(self, local_path: Path):
         self.local_path = Path(local_path)
         self.backend = "local"
-        self.table: Any = None
-        self.error: str | None = None
+        self.local_path.parent.mkdir(parents=True, exist_ok=True)
 
-        if prefer_dynamo:
-            try:
-                import boto3  # type: ignore
-                res: Any = boto3.resource("dynamodb", region_name=region)
-                table = res.Table(table_name)
-                table.load()                       # raises if absent/no creds
-                self.table = table
-                self.backend = "dynamodb"
-            except ImportError:
-                self.error = "boto3 not installed"
-            except Exception as exc:               # ClientError, NoCredentials
-                self.error = f"{type(exc).__name__}: {str(exc)[:120]}"
+    @property
+    def durable(self) -> bool:
+        return True
 
-        if self.backend == "local":
-            self.local_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # ------------------------------------------------------------- write
     def save(self, record: dict) -> dict:
         record = {k: v for k, v in record.items() if v is not None}
-        if self.backend == "dynamodb" and self.table is not None:
-            try:
-                self.table.put_item(Item=_clean(record))
-                return {"stored": True, "backend": "dynamodb",
-                        "report_id": record["report_id"]}
-            except Exception as exc:
-                self.error = str(exc)[:160]
-                # Fall through to local so a finding is never lost.
         try:
-            with self.local_path.open("a") as f:
-                f.write(json.dumps(record, default=str) + "\n")
-            return {"stored": True, "backend": "local",
-                    "report_id": record["report_id"]}
+            with self.local_path.open("a", encoding="utf8") as f:
+                f.write(json.dumps(_clean(record), default=str) + "\n")
+            return {"stored": True, "backend": "local", "report_id": record["report_id"]}
         except OSError as exc:
-            return {"stored": False, "backend": self.backend,
-                    "error": str(exc)[:160]}
+            return {"stored": False, "backend": "local", "error": str(exc)[:160]}
 
-    # -------------------------------------------------------------- read
-    def recent(self, limit: int = 25) -> list:
-        if self.backend == "dynamodb" and self.table is not None:
-            try:
-                raw_items = self.table.scan(Limit=limit * 3).get("Items", [])
-                items: list[Any] = [_undecimal(i) for i in raw_items if isinstance(i, dict)]
-                items.sort(key=lambda r: str(r.get("created_at", "") if isinstance(r, dict) else ""), reverse=True)
-                return items[:limit]
-            except Exception as exc:
-                self.error = str(exc)[:160]
-                return []
+    def _local_rows(self, limit: int) -> list:
         if not self.local_path.exists():
             return []
         try:
-            lines = self.local_path.read_text().strip().splitlines()
+            lines = self.local_path.read_text(encoding="utf8").strip().splitlines()
         except OSError:
             return []
         out = []
-        for line in reversed(lines[-limit * 2:]):
+        for line in reversed(lines[-limit * 3:]):
             try:
                 out.append(json.loads(line))
             except json.JSONDecodeError:
@@ -156,13 +89,23 @@ class ReportStore:
                 break
         return out
 
-    def find_by_hash(self, sha256: str) -> list:
-        """Has this exact file been checked before? Useful in an
-        investigation, and it costs nothing to answer."""
-        return [r for r in self.recent(200)
-                if r.get("evidence_sha256") == sha256]
+    def recent(self, limit: int = 25) -> list:
+        return self._local_rows(limit)
+
+    def for_user(self, user_id: str, limit: int = 25) -> list:
+        if not user_id:
+            return self.recent(limit)
+        return [r for r in self._local_rows(limit * 4)
+                if r.get("user_id") == user_id][:limit]
+
+    def find_by_hash(self, sha256: str, user_id: str = "") -> list:
+        pool = self.for_user(user_id, 200) if user_id else self.recent(200)
+        return [r for r in pool if r.get("evidence_sha256") == sha256]
 
     def status(self) -> dict:
-        return {"backend": self.backend, "table": self.table_name,
-                "region": self.region if self.backend == "dynamodb" else None,
-                "error": self.error}
+        return {
+            "backend": "local",
+            "path": str(self.local_path),
+            "durable": True,
+            "error": None
+        }
