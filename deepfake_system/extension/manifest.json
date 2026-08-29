@@ -4,7 +4,12 @@
   "version": "1.0.0",
   "description": "Right-click any video on Instagram, Facebook, TikTok or X and send it to your verification server.",
   "permissions": ["contextMenus", "storage", "notifications", "scripting", "activeTab"],
-  "host_permissions": ["http://localhost:8000/*", "https://*/*"],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*",
+    "https://*/*",
+    "http://*/*"
+  ],
   "background": { "service_worker": "background.js" },
   "options_page": "options.html",
   "action": { "default_popup": "popup.html", "default_title": "Deepfake Forensics" },

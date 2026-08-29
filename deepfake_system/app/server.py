@@ -158,7 +158,16 @@ async def analyse(video: UploadFile = File(...)):
             pass
 
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(title="Deepfake Forensics", description="BSc Cybersecurity Capstone System", docs_url=None, redoc_url=None)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(router, prefix="/api")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 

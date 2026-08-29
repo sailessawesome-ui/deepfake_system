@@ -6,7 +6,7 @@
    which is what makes it work on sites with authentication/cookies —
    and posts them to the local verification server (http://localhost:8000). */
 
-const DEFAULTS = { server: "http://localhost:8000" };
+const DEFAULTS = { server: "http://127.0.0.1:8000" };
 
 function setupContextMenu() {
   chrome.contextMenus.removeAll(() => {
