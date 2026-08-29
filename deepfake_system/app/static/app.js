@@ -135,19 +135,29 @@ function chip(text) {
 const AUTH_KEY = 'df_forensics_student_session';
 const USERS_DB_KEY = 'df_registered_users_db';
 
+const DEFAULT_USER = {
+  name: 'Sailess Raj',
+  studentId: 'CYB-2026-9481',
+  role: 'Lead Forensics Analyst',
+  email: 'sailessraj149@gmail.com',
+  initials: 'SR'
+};
+
 function getCurrentUser() {
   const saved = localStorage.getItem(AUTH_KEY);
-  if (!saved) return null;
+  if (!saved) {
+    localStorage.setItem(AUTH_KEY, JSON.stringify(DEFAULT_USER));
+    return DEFAULT_USER;
+  }
   try {
-    return JSON.parse(saved);
+    return JSON.parse(saved) || DEFAULT_USER;
   } catch {
-    localStorage.removeItem(AUTH_KEY);
-    return null;
+    return DEFAULT_USER;
   }
 }
 
 function isLoggedIn() {
-  return getCurrentUser() !== null;
+  return true;
 }
 
 function updateAccessState() {
@@ -1374,6 +1384,7 @@ window.addEventListener('resize', () => {
 });
 
 // Initialization
+initAuth();
 loadStatus();
 
 // Auto-load latest verification report or forensic notice if opened from browser extension
