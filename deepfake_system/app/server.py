@@ -105,11 +105,13 @@ class UrlRequest(BaseModel):
     url: str
 
 
-def _download_stream_url(url: str, out_path: str) -> str:
+def _download_stream_url(url: str, out_path: str) -> tuple[str, str]:
     import yt_dlp
+    base = os.path.splitext(out_path)[0]
+    outtmpl = base + '.%(ext)s'
     ydl_opts = {
         'format': 'bestvideo[height<=720]+bestaudio/best[height<=720]/best',
-        'outtmpl': out_path,
+        'outtmpl': outtmpl,
         'merge_output_format': 'mp4',
         'max_filesize': MAX_BYTES,
         'quiet': True,
@@ -117,7 +119,14 @@ def _download_stream_url(url: str, out_path: str) -> str:
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
-        return info.get('title', 'stream_video')
+        title = info.get('title', 'stream_video')
+        actual_path = out_path
+        if not os.path.exists(actual_path):
+            for ext in [".mp4", ".mkv", ".webm"]:
+                if os.path.exists(base + ext):
+                    actual_path = base + ext
+                    break
+        return title, actual_path
 
 
 @router.post("/analyse-url")
@@ -131,12 +140,12 @@ async def analyse_url(req: UrlRequest):
     tmp_base.close()
 
     try:
-        title = await run_in_threadpool(_download_stream_url, url, tmp_path)
+        title, final_path = await run_in_threadpool(_download_stream_url, url, tmp_path)
 
         import hashlib
         sha256 = hashlib.sha256()
         size = 0
-        with open(tmp_path, "rb") as f:
+        with open(final_path, "rb") as f:
             while chunk := f.read(1 << 20):
                 size += len(chunk)
                 sha256.update(chunk)
@@ -144,7 +153,7 @@ async def analyse_url(req: UrlRequest):
 
         engine = get_engine()
         async with _slots:
-            result = await run_in_threadpool(engine.analyse, tmp_path, f"{title}.mp4")
+            result = await run_in_threadpool(engine.analyse, final_path, f"{title}.mp4")
 
         result["filename"] = f"{title}.mp4"
         result["size_bytes"] = size
