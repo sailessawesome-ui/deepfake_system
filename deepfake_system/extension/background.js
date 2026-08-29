@@ -25,7 +25,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== "check-video") return;
   const { server } = await chrome.storage.sync.get(DEFAULTS);
   const pageHost = tab?.url ? new URL(tab.url).hostname : "media";
-  notify("Deepfake Forensics", `Extracting video from ${pageHost}...`);
+  notify("Deepfake Forensics", `Extracting video from ${pageHost}... Opening Forensic Lab.`);
+
+  // Automatically open the Forensic Lab Web App so the user sees the dashboard immediately!
+  chrome.tabs.create({ url: `${server}/`, active: true });
 
   try {
     const [{ result }] = await chrome.scripting.executeScript({
@@ -51,9 +54,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     await chrome.storage.local.set({ lastResult: data });
     const pct = data.probability == null ? "—" : `${Math.round(data.probability * 100)}%`;
     const labelHeader = labelText(data.label);
-    notify(`${labelHeader} (${pct})`, `${data.faces_found || 0} faces isolated · Click to view full report`);
+    notify(`${labelHeader} (${pct})`, `${data.faces_found || 0} faces isolated · Full report loaded`);
   } catch (err) {
-    notify("Forensic Check Notice", err.message);
+    notify("Forensic Notice", err.message);
   }
 });
 
