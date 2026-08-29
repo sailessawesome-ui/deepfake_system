@@ -25,10 +25,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== "check-video") return;
   const { server } = await chrome.storage.sync.get(DEFAULTS);
   const pageHost = tab?.url ? new URL(tab.url).hostname : "media";
-  notify("Deepfake Forensics", `Extracting video from ${pageHost}... Opening Forensic Lab.`);
-
-  // Automatically open the Forensic Lab Web App so the user sees the dashboard immediately!
-  chrome.tabs.create({ url: `${server}/`, active: true });
+  notify("Deepfake Forensics", `Extracting media from ${pageHost}...`);
 
   try {
     const [{ result }] = await chrome.scripting.executeScript({
@@ -41,7 +38,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       throw new Error(result?.error || "No playable video found on this page.");
     }
 
-    notify("Analyzing Media", "Running spatial-temporal & audio verification...");
+    notify("Analyzing Evidence", "Running spatial-temporal & multimodal audio verification...");
 
     const bytes = Uint8Array.from(atob(result.b64), c => c.charCodeAt(0));
     const body = new FormData();
@@ -54,7 +51,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     await chrome.storage.local.set({ lastResult: data });
     const pct = data.probability == null ? "—" : `${Math.round(data.probability * 100)}%`;
     const labelHeader = labelText(data.label);
-    notify(`${labelHeader} (${pct})`, `${data.faces_found || 0} faces isolated · Full report loaded`);
+    notify(`${labelHeader} (${pct})`, `${data.faces_found || 0} faces isolated · Report ready`);
+
+    // Open the Forensic Lab Web App pre-loaded with the full analysis report!
+    chrome.tabs.create({ url: `${server}/?view=latest`, active: true });
   } catch (err) {
     notify("Forensic Notice", err.message);
   }

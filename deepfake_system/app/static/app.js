@@ -1338,3 +1338,21 @@ window.addEventListener('resize', () => {
 // Initialization
 initAuth();
 loadStatus();
+
+// Auto-load latest verification report if opened from browser extension
+(function checkAutoLoad() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('view') === 'latest' || window.location.hash === '#latest') {
+    fetch('/api/reports/latest')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.probability !== undefined) {
+          render(data);
+          setTimeout(() => {
+            el.result?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 300);
+        }
+      })
+      .catch(() => {});
+  }
+})();

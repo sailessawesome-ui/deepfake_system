@@ -78,6 +78,16 @@ def reports(limit: int = Query(25, ge=1, le=100)):
     return {"reports": store.recent(limit), "backend": store.backend}
 
 
+_LATEST_RESULT: dict | None = None
+
+
+@router.get("/reports/latest")
+def latest_report():
+    if not _LATEST_RESULT:
+        raise HTTPException(404, "No verification report generated yet.")
+    return _LATEST_RESULT
+
+
 @router.get("/reports/by-hash/{sha256}")
 def reports_by_hash(sha256: str):
     if not re.fullmatch(r"[0-9a-fA-F]{64}", sha256):
@@ -136,6 +146,9 @@ async def analyse(video: UploadFile = File(...)):
                     f"This exact file has been checked here {len(prior)} time"
                     f"{'s' if len(prior) > 1 else ''} before. The earlier "
                     "reports are under Past findings.")
+
+        global _LATEST_RESULT
+        _LATEST_RESULT = result
         return result
     finally:
         tmp.close()
