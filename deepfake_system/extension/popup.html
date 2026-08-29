@@ -1,14 +1,122 @@
-<!DOCTYPE html><html><head><meta charset="utf-8">
-<style>
-body{font:13px system-ui;background:#0D121D;color:#E7EDF4;margin:0;padding:16px;width:280px}
-h1{font-size:14px;margin:0 0 10px}
-p{color:#8B97A8;line-height:1.5;margin:0 0 12px}
-.v{font-size:20px;font-weight:600;margin:0 0 2px}
-.real{color:#34C8A5}.fake{color:#F2557E}.maybe{color:#E9A13B}
-.n{font-family:ui-monospace,monospace;color:#8B97A8;font-size:12px}
-a{color:#6E8BFF}
-</style></head><body>
-<h1>Deepfake Forensics</h1>
-<div id="out"><p>Right-click a video on any page and choose <b>Check this video for manipulation</b>.</p></div>
-<p class="n"><a href="#" id="opts">Server settings</a></p>
-<script src="popup.js"></script></body></html>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      background: #070A0F;
+      color: #E2E8F0;
+      margin: 0;
+      padding: 16px;
+      width: 300px;
+      box-sizing: border-box;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+    }
+    .title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #00F0FF;
+      margin: 0;
+    }
+    .status-dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #00FFAA;
+      box-shadow: 0 0 8px #00FFAA;
+    }
+    p {
+      color: #94A3B8;
+      font-size: 12px;
+      line-height: 1.5;
+      margin: 0 0 10px;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .v {
+      font-size: 18px;
+      font-weight: 700;
+      margin: 0 0 4px;
+      letter-spacing: 0.02em;
+    }
+    .real { color: #00FFAA; }
+    .fake { color: #FF0055; }
+    .maybe { color: #F59E0B; }
+    .meta {
+      font-family: ui-monospace, "SF Mono", monospace;
+      color: #64748B;
+      font-size: 11px;
+      margin: 0 0 6px;
+    }
+    .btn-lab {
+      display: block;
+      text-align: center;
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.15), rgba(112, 0, 255, 0.15));
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      color: #00F0FF;
+      text-decoration: none;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 8px 12px;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+    .btn-lab:hover {
+      background: rgba(0, 240, 255, 0.25);
+      border-color: #00F0FF;
+      color: #FFFFFF;
+    }
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      margin-top: 10px;
+      color: #475569;
+    }
+    .footer a {
+      color: #64748B;
+      text-decoration: none;
+    }
+    .footer a:hover {
+      color: #94A3B8;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">Deepfake Forensics</div>
+    <div class="status-dot" title="Server Active (localhost:8000)"></div>
+  </div>
+
+  <div id="out">
+    <div class="card">
+      <p>Right-click a video on any page and choose <b>Check this video for manipulation</b>.</p>
+    </div>
+  </div>
+
+  <a href="http://localhost:8000" target="_blank" class="btn-lab" id="openLab">Open Forensic Lab Web App ↗</a>
+
+  <div class="footer">
+    <span>Engine: Neural + Audio</span>
+    <a href="#" id="opts">Settings</a>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

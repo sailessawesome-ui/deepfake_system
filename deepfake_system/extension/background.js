@@ -80,3 +80,7 @@ function notify(title, message) {
     type: "basic", iconUrl: "icon128.png", title, message: message || ""
   });
 }
+
+chrome.notifications.onClicked.addListener(() => {
+  chrome.tabs.create({ url: "http://localhost:8000" });
+});
