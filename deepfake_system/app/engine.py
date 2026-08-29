@@ -117,27 +117,37 @@ class FaceExtractor:
                     "haarcascade_frontalface_default.xml")
                 self.backend = "haar"
 
-    def _boxes(self, rgb):
+    def _boxes(self, rgb, min_conf=0.60):
         h, w = rgb.shape[:2]
         if self.backend == "mtcnn":
-            boxes, probs = self.det.detect(rgb)
-            if boxes is None:
-                return []
-            return [b for b, p in zip(boxes, probs)
-                    if p is not None and p >= INFER.min_face_conf]
+            try:
+                boxes, probs = self.det.detect(rgb)
+                if boxes is not None:
+                    valid = [b for b, p in zip(boxes, probs)
+                             if p is not None and p >= min_conf]
+                    if valid:
+                        return valid
+            except Exception:
+                pass
         if self.backend == "mediapipe":
-            res = self.det.process(rgb)
-            if not res.detections:
-                return []
-            out = []
-            for d in res.detections:
-                r = d.location_data.relative_bounding_box
-                out.append(np.array([r.xmin * w, r.ymin * h,
-                                     (r.xmin + r.width) * w,
-                                     (r.ymin + r.height) * h]))
-            return out
+            try:
+                res = self.det.process(rgb)
+                if res.detections:
+                    out = []
+                    for d in res.detections:
+                        r = d.location_data.relative_bounding_box
+                        out.append(np.array([r.xmin * w, r.ymin * h,
+                                             (r.xmin + r.width) * w,
+                                             (r.ymin + r.height) * h]))
+                    if out:
+                        return out
+            except Exception:
+                pass
         gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
-        faces = self.det.detectMultiScale(gray, 1.1, 5, minSize=(60, 60))
+        if not hasattr(self, "_haar") or self._haar is None:
+            self._haar = cv2.CascadeClassifier(
+                cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+        faces = self._haar.detectMultiScale(gray, 1.1, 4, minSize=(36, 36))
         return [np.array([x, y, x + fw, y + fh]) for x, y, fw, fh in faces]
 
     def _crop(self, rgb, box, margin=0.32):
