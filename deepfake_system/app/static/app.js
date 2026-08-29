@@ -1374,7 +1374,6 @@ window.addEventListener('resize', () => {
 });
 
 // Initialization
-initAuth();
 loadStatus();
 
 // Auto-load latest verification report or forensic notice if opened from browser extension
@@ -1394,8 +1393,13 @@ loadStatus();
       }, 300);
     }
     return;
+  }
+
   const urlParam = params.get('url');
   if (urlParam) {
+    setTimeout(() => {
+      el.workspace?.scrollIntoView({ behavior: 'smooth' });
+    }, 200);
     sendUrl(decodeURIComponent(urlParam));
     return;
   }
