@@ -174,6 +174,17 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class ProfileRequest(BaseModel):
+    name: str
+    studentId: str = ""
+    role: str = ""
+
+
+class PasswordRequest(BaseModel):
+    currentPassword: str
+    newPassword: str
+
+
 def _set_session_cookie(response: Response, token: str) -> None:
     response.set_cookie(
         AUTH.cookie_name, token,
@@ -248,6 +259,44 @@ def auth_logout_all(request: Request, response: Response,
                       email=user.get("email", ""), ip=client_ip(request),
                       detail={"sessions_revoked": n})
     return {"ok": True, "sessions_revoked": n}
+
+
+@router.patch("/auth/profile")
+def auth_update_profile(body: ProfileRequest, request: Request,
+                        user: dict = Depends(require_user)):
+    """Edit the examiner's own details. The name and ID appear on every
+    exported report, so a change here is worth an audit entry."""
+    try:
+        updated = get_auth().update_profile(user["user_id"], body.name,
+                                            body.studentId, body.role)
+    except AuthError as exc:
+        raise HTTPException(400, str(exc))
+
+    get_audit().write(audit_mod.PROFILE_UPDATE, user_id=user["user_id"],
+                      email=user.get("email", ""), ip=client_ip(request),
+                      detail={"role": updated.get("role"),
+                              "student_id": updated.get("studentId")})
+    return {"user": updated}
+
+
+@router.post("/auth/password")
+def auth_change_password(body: PasswordRequest, request: Request,
+                         user: dict = Depends(require_user)):
+    try:
+        get_auth().change_password(user["user_id"], body.currentPassword,
+                                   body.newPassword)
+    except AuthError as exc:
+        raise HTTPException(400, str(exc))
+
+    # Everything else signed in as this account is now stale. Keep only
+    # the session that made the change so the user is not logged out of
+    # the browser they are sitting in front of.
+    token = request.cookies.get(AUTH.cookie_name, "")
+    revoked = get_auth().revoke_others(user["user_id"], token)
+    get_audit().write(audit_mod.PASSWORD_CHANGE, user_id=user["user_id"],
+                      email=user.get("email", ""), ip=client_ip(request),
+                      detail={"other_sessions_revoked": revoked})
+    return {"ok": True, "other_sessions_revoked": revoked}
 
 
 @router.get("/auth/me")

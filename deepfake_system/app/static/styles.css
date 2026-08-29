@@ -1379,7 +1379,8 @@ button { font: inherit; color: inherit; }
 @media (max-width: 1024px) {
   .shell { grid-template-columns: 1fr; }
   .rail { position: static; }
-  .bar-nav { display: none; }
+  /* The nav is not hidden here — it collapses into the #navToggle
+     drawer at the same breakpoint, further down this sheet. */
 }
 
 @media (max-width: 640px) {
@@ -1511,3 +1512,675 @@ button { font: inherit; color: inherit; }
   }
 }
 
+
+/* ═══════════════════════════════════════════════════════════════
+   v4.0 — Academic Homepage Layer
+   Same palette, calmer surfaces, scrollable long-form homepage.
+   Rules here intentionally sit after the base sheet so they win
+   on equal specificity.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Derived from the existing palette only — no new hues. */
+  --line-hair:     rgba(255, 255, 255, 0.055);
+  --bg-alt:        rgba(255, 255, 255, 0.015);
+  --nav-h:         66px;
+  --shadow-soft:   0 6px 20px rgba(0, 0, 0, 0.28);
+  --shadow-lift:   0 12px 30px rgba(0, 0, 0, 0.38);
+}
+
+/* Sticky header offset for every in-page anchor target. */
+.section-anchor { scroll-margin-top: calc(var(--nav-h) + 18px); }
+
+/* Keyboard escape hatch past the nav. */
+.skip-link {
+  position: fixed; top: 8px; left: 8px; z-index: 200;
+  transform: translateY(-160%);
+  background: var(--cyber-cyan); color: #04121A;
+  font-weight: 700; font-size: 13px;
+  padding: 10px 16px; border-radius: var(--radius-sm);
+  text-decoration: none; transition: transform 0.18s ease;
+}
+.skip-link:focus { transform: translateY(0); }
+
+/* Reading-position bar under the header. */
+.scroll-progress {
+  position: fixed; top: 0; left: 0; right: 0; height: 2px;
+  z-index: 60; pointer-events: none; background: transparent;
+}
+.scroll-progress span {
+  display: block; height: 100%; width: 0;
+  background: linear-gradient(90deg, var(--cyber-cyan), var(--cyber-violet));
+  transition: width 0.08s linear;
+}
+
+/* ── Navigation: calmer, and collapsible on small screens ─────── */
+.bar {
+  padding: 10px 28px;
+  min-height: var(--nav-h);
+  background: rgba(7, 10, 15, 0.9);
+}
+.bar-nav { gap: 20px; }
+.nav-item { font-size: 13px; padding: 8px 2px; }
+.nav-item.is-active::after {
+  height: 2px; box-shadow: none; /* the underline alone is enough */
+}
+.nav-item--lab {
+  color: var(--cyber-cyan);
+  border: 1px solid var(--line-cyber);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+}
+.nav-item--lab.is-active::after { display: none; }
+.nav-item--lab:hover { background: rgba(0, 240, 255, 0.08); }
+
+.nav-toggle {
+  display: none; flex-direction: column; justify-content: center;
+  gap: 5px; width: 40px; height: 38px; padding: 0 9px;
+  background: var(--bg-card); border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-sm); cursor: pointer;
+}
+.nav-toggle span {
+  display: block; height: 2px; width: 100%; border-radius: 2px;
+  background: var(--ink-mid); transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.nav-toggle[aria-expanded="true"] span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.nav-toggle[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
+.nav-toggle[aria-expanded="true"] span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/* ── Ambient layer: dialled back so the content reads first ───── */
+.cyber-glow { opacity: 0.11; filter: blur(140px); }
+.cyber-grid { background-size: 56px 56px; }
+
+/* ── Shared section scaffolding ───────────────────────────────── */
+.page-section {
+  position: relative; z-index: 2;
+  padding: 74px 24px;
+  border-top: 1px solid var(--line-hair);
+}
+.section-alt { background: var(--bg-alt); }
+.section-inner { max-width: 1180px; margin: 0 auto; }
+
+.section-head {
+  max-width: 720px; margin: 0 0 40px;
+}
+.section-index {
+  display: inline-block; font-family: var(--font-mono);
+  font-size: 12px; font-weight: 700; letter-spacing: 0.14em;
+  color: var(--cyber-cyan); margin-bottom: 10px;
+}
+.page-section .section-title {
+  font-size: clamp(24px, 3vw, 34px); margin: 0 0 12px;
+}
+.page-section .section-subtitle {
+  font-size: 15.5px; margin: 0; max-width: 62ch;
+}
+
+/* ── Hero adjustments ─────────────────────────────────────────── */
+.hero { padding: 68px 24px 40px; max-width: 1180px; }
+.hero-inner { max-width: 880px; }
+.hero-title { font-size: clamp(28px, 4vw, 46px); }
+.hero-lead { font-size: 16px; max-width: 68ch; margin-bottom: 30px; }
+.btn-hero--primary { box-shadow: 0 4px 18px rgba(0, 240, 255, 0.22); }
+.btn-hero--primary:hover { box-shadow: 0 6px 24px rgba(0, 240, 255, 0.34); }
+
+/* Candidate / module record — reads like a coursework cover block. */
+.project-record {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 1px; margin: 46px auto 0; max-width: 940px;
+  background: var(--line-hair);
+  border: 1px solid var(--line-hair); border-radius: var(--radius-md);
+  overflow: hidden; text-align: left;
+}
+.record-item { background: var(--bg-card); padding: 14px 18px; }
+.record-item dt {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-dim); margin-bottom: 5px;
+}
+.record-item dd {
+  margin: 0; font-size: 13.5px; color: var(--ink-bright); font-weight: 500;
+}
+
+.scroll-cue {
+  display: inline-flex; flex-direction: column; align-items: center; gap: 2px;
+  margin-top: 40px; color: var(--ink-dim); text-decoration: none;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em;
+  text-transform: uppercase; transition: color 0.18s ease;
+}
+.scroll-cue:hover { color: var(--cyber-cyan); }
+.scroll-cue svg { animation: cueBob 2.4s ease-in-out infinite; }
+@keyframes cueBob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(4px); }
+}
+
+/* ── 01 Overview cards ────────────────────────────────────────── */
+.overview-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(252px, 1fr));
+  gap: 18px;
+}
+.info-card {
+  background: var(--bg-card); border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-lg); padding: 24px 22px;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+.info-card:hover { border-color: var(--line-cyber); transform: translateY(-2px); }
+.info-card-title {
+  font-family: var(--font-display); font-size: 16px; font-weight: 700;
+  color: var(--ink-pure); margin: 0 0 12px;
+  padding-bottom: 10px; border-bottom: 1px solid var(--line-hair);
+}
+.info-card-body { margin: 0; font-size: 14px; color: var(--ink-mid); line-height: 1.65; }
+.info-list { margin: 0; padding-left: 18px; font-size: 13.5px; color: var(--ink-mid); line-height: 1.7; }
+.info-list li { margin-bottom: 6px; }
+.info-list li::marker { color: var(--cyber-cyan); }
+.info-list strong { color: var(--ink-bright); font-weight: 600; }
+
+/* ── 02 How-to steps ──────────────────────────────────────────── */
+.steps-grid {
+  list-style: none; margin: 0 0 28px; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
+  gap: 18px;
+}
+.step-card {
+  position: relative; background: var(--bg-card);
+  border: 1px solid var(--line-subtle); border-radius: var(--radius-lg);
+  padding: 26px 22px 22px;
+}
+.step-num {
+  position: absolute; top: -14px; left: 22px;
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 13px; font-weight: 700;
+  color: #04121A; background: var(--cyber-cyan);
+}
+.step-title {
+  font-family: var(--font-display); font-size: 16px; font-weight: 700;
+  color: var(--ink-pure); margin: 6px 0 9px;
+}
+.step-body { margin: 0; font-size: 13.5px; color: var(--ink-mid); line-height: 1.65; }
+.step-body em { color: var(--cyber-cyan); font-style: normal; font-weight: 600; }
+
+.note-strip {
+  display: flex; gap: 14px; align-items: flex-start;
+  background: rgba(0, 240, 255, 0.04);
+  border: 1px solid var(--line-cyber); border-left-width: 3px;
+  border-radius: var(--radius-md); padding: 16px 20px;
+  color: var(--cyber-cyan);
+}
+.note-strip svg { flex-shrink: 0; margin-top: 2px; }
+.note-strip p { margin: 0; font-size: 13.5px; color: var(--ink-mid); line-height: 1.65; }
+
+/* ── 04 Results table & runtime strip ─────────────────────────── */
+#results .telemetry-grid { margin-bottom: 30px; }
+
+.table-wrap {
+  overflow-x: auto; border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-lg); background: var(--bg-card);
+  -webkit-overflow-scrolling: touch;
+}
+.data-table {
+  width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 560px;
+}
+.data-table caption {
+  caption-side: top; text-align: left; padding: 16px 20px 12px;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-dim);
+}
+.data-table th, .data-table td {
+  padding: 12px 20px; text-align: left;
+  border-top: 1px solid var(--line-hair);
+}
+.data-table thead th {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-dim); background: rgba(255, 255, 255, 0.02);
+}
+.data-table tbody th {
+  font-weight: 600; color: var(--ink-bright);
+}
+.data-table tbody td {
+  font-family: var(--font-mono); color: var(--ink-mid);
+}
+.data-table tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
+.data-table .row-total th,
+.data-table .row-total td {
+  color: var(--ink-pure); font-weight: 700;
+  border-top: 1px solid var(--line-cyber);
+  background: rgba(0, 240, 255, 0.04);
+}
+
+.table-note {
+  margin: 14px 0 0; font-size: 12.5px; color: var(--ink-dim); line-height: 1.6;
+}
+.table-note code {
+  font-family: var(--font-mono); font-size: 11.5px;
+  background: rgba(255, 255, 255, 0.05); padding: 2px 6px;
+  border-radius: 4px; color: var(--ink-mid);
+}
+.table-note a { color: var(--cyber-cyan); }
+
+.runtime-strip {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px;
+  margin-top: 22px; padding: 14px 20px;
+  border: 1px dashed var(--line-subtle); border-radius: var(--radius-md);
+}
+.runtime-strip-label {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--ink-dim);
+}
+.runtime-items { display: flex; flex-wrap: wrap; gap: 10px 26px; }
+.runtime-item { display: flex; align-items: baseline; gap: 8px; }
+.runtime-key { font-size: 12.5px; color: var(--ink-dim); }
+.runtime-val {
+  font-family: var(--font-mono); font-size: 12.5px; font-weight: 600;
+  color: var(--cyber-cyan);
+}
+
+/* ── 05 Methodology pipeline ──────────────────────────────────── */
+.pipeline {
+  list-style: none; margin: 0 0 34px; padding: 0;
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+  counter-reset: pipe;
+}
+.pipe-stage {
+  position: relative; display: flex; flex-direction: column; gap: 5px;
+  background: var(--bg-card); border: 1px solid var(--line-subtle);
+  border-top: 2px solid var(--cyber-cyan);
+  border-radius: var(--radius-md); padding: 16px 16px 18px;
+}
+.pipe-stage:not(:last-child)::after {
+  content: '›'; position: absolute; right: -11px; top: 50%;
+  transform: translateY(-50%); color: var(--ink-dim);
+  font-size: 20px; line-height: 1; z-index: 3;
+}
+.pipe-step {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--cyber-cyan);
+}
+.pipe-name {
+  font-family: var(--font-display); font-size: 14.5px; font-weight: 700;
+  color: var(--ink-pure);
+}
+.pipe-desc { font-size: 12.5px; color: var(--ink-dim); line-height: 1.55; }
+
+#methodology .capabilities-grid {
+  grid-template-columns: repeat(auto-fit, minmax(262px, 1fr)); gap: 18px;
+}
+#methodology .cap-card { padding: 26px 22px; }
+#methodology .cap-card:hover {
+  transform: translateY(-3px); box-shadow: var(--shadow-lift);
+  border-color: var(--line-cyber);
+}
+.cap-ref {
+  margin: 14px 0 0; padding-top: 12px;
+  border-top: 1px solid var(--line-hair);
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--ink-dim); letter-spacing: 0.03em;
+}
+
+/* ── 06 Limitations & references ──────────────────────────────── */
+.limits-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(272px, 1fr));
+  gap: 18px; margin-bottom: 40px;
+}
+.limit-card {
+  background: var(--bg-card); border: 1px solid var(--line-subtle);
+  border-left: 3px solid var(--maybe);
+  border-radius: var(--radius-md); padding: 20px 22px;
+}
+.limit-title {
+  font-family: var(--font-display); font-size: 15px; font-weight: 700;
+  color: var(--ink-pure); margin: 0 0 9px;
+}
+.limit-body { margin: 0; font-size: 13.5px; color: var(--ink-mid); line-height: 1.65; }
+
+.refs-block {
+  border-top: 1px solid var(--line-hair); padding-top: 28px;
+}
+.refs-title {
+  font-family: var(--font-display); font-size: 15px; font-weight: 700;
+  color: var(--ink-pure); margin: 0 0 14px;
+}
+.refs-list {
+  margin: 0; padding-left: 22px;
+  font-size: 13px; color: var(--ink-mid); line-height: 1.85;
+  columns: 2; column-gap: 44px;
+}
+.refs-list li { break-inside: avoid; margin-bottom: 4px; }
+.refs-list li::marker { color: var(--ink-dim); font-family: var(--font-mono); font-size: 11px; }
+.refs-list em { color: var(--ink-bright); font-style: italic; }
+
+/* ── Locked portal & workspace spacing in the new flow ────────── */
+.locked-portal { margin: 0 auto; padding: 60px 24px; max-width: 1180px; }
+.locked-portal-card { padding: 44px 30px; }
+.shell { padding: 32px 20px 70px; }
+
+/* ── Back to top ──────────────────────────────────────────────── */
+.back-to-top {
+  position: fixed; right: 22px; bottom: 22px; z-index: 55;
+  width: 44px; height: 44px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-card); color: var(--cyber-cyan);
+  border: 1px solid var(--line-cyber); cursor: pointer;
+  box-shadow: var(--shadow-soft);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+.back-to-top:hover { transform: translateY(-3px); background: var(--bg-card-hover); }
+
+/* ── Footer ───────────────────────────────────────────────────── */
+.footer { padding: 30px 24px; }
+.footer-note { font-size: 12.5px; max-width: 480px; line-height: 1.6; }
+.footer-links { flex-wrap: wrap; gap: 8px 20px; }
+
+/* ── Responsive: flexible from 320px up ───────────────────────── */
+@media (max-width: 1080px) {
+  .pipeline { grid-template-columns: repeat(auto-fit, minmax(178px, 1fr)); }
+  .pipe-stage:not(:last-child)::after { display: none; }
+}
+
+/* Seven nav items plus the account widget stop fitting on one row at
+   about 1150px once the strapline is dropped, so the menu collapses
+   into the drawer there — earlier
+   than the lab's two-column layout needs to stack. */
+@media (max-width: 1150px) {
+  .nav-toggle { display: flex; }
+  .bar { flex-wrap: wrap; padding: 10px 18px; }
+  .bar-nav {
+    display: none; order: 3; width: 100%;
+    flex-direction: column; align-items: stretch; gap: 0;
+    margin-top: 8px; padding-top: 8px;
+    border-top: 1px solid var(--line-hair);
+  }
+  .bar-nav.is-open { display: flex; }
+  .bar-nav .nav-item {
+    padding: 12px 6px; font-size: 14px;
+    border-bottom: 1px solid var(--line-hair);
+  }
+  .bar-nav .nav-item:last-child { border-bottom: 0; }
+  .nav-item.is-active::after { display: none; }
+  .bar-nav .nav-item.is-active {
+    color: var(--cyber-cyan); padding-left: 12px;
+    border-left: 2px solid var(--cyber-cyan);
+  }
+  .nav-item--lab { border: 1px solid var(--line-cyber); margin: 8px 0; text-align: center; }
+}
+
+@media (max-width: 1024px) {
+  .shell { grid-template-columns: 1fr; }
+  .rail { position: static; max-width: none; }
+  .refs-list { columns: 1; }
+}
+
+@media (max-width: 720px) {
+  .page-section { padding: 54px 18px; }
+  .hero { padding: 44px 18px 30px; }
+  .locked-portal { padding: 40px 18px; }
+  .shell { padding: 32px 16px 50px; }
+  .section-head { margin-bottom: 30px; }
+  .project-record { margin-top: 34px; }
+  .footer-inner { flex-direction: column; align-items: flex-start; text-align: left; }
+  .back-to-top { right: 14px; bottom: 14px; width: 40px; height: 40px; }
+}
+
+@media (max-width: 480px) {
+  .bar { padding: 10px 14px; gap: 10px; }
+  .brand-sub { display: none; }
+  .brand-name { font-size: 15px; }
+  .hero-title { font-size: 26px; }
+  .hero-lead { font-size: 14.5px; }
+  .hero-cta-group { flex-direction: column; align-items: stretch; }
+  .btn-hero { justify-content: center; width: 100%; }
+  .page-section { padding: 44px 14px; }
+  .info-card, .step-card, .limit-card { padding: 18px 16px; }
+  .note-strip { flex-direction: column; gap: 10px; padding: 14px 16px; }
+  .runtime-strip { flex-direction: column; align-items: flex-start; }
+  .locked-portal-card { padding: 32px 18px; }
+}
+
+/* Respect the OS reduced-motion setting throughout. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Keep the new furniture out of exported reports. */
+@media print {
+  .scroll-progress, .back-to-top, .skip-link, .nav-toggle,
+  .scroll-cue, .cyber-grid, .cyber-glow { display: none !important; }
+}
+
+/* ── Header density fix ───────────────────────────────────────────
+   The full runtime detail now has a home in the Results section, so
+   the bar keeps only what still fits and drops chips as space runs
+   out rather than wrapping onto a second row.                       */
+.bar-meta { flex-wrap: nowrap; gap: 6px; }
+.bar-meta .chip { font-size: 10px; padding: 3px 8px; }
+.brand-sub, .nav-item { white-space: nowrap; }
+/* The chip drop-out breakpoints live with the fit-to-screen rules below,
+   so there is one place that decides what the bar sheds first. */
+
+/* Heading band above the lab; the card beneath it swaps between the
+   locked portal and the signed-in workspace, so the heading is its
+   own element rather than living inside either one. */
+.lab-heading-band {
+  position: relative; z-index: 2;
+  padding: 68px 24px 0;
+  border-top: 1px solid var(--line-hair);
+}
+.lab-heading-band .section-head { margin-bottom: 0; }
+.lab-heading-band + .locked-portal { padding-top: 32px; }
+/* The hidden locked portal sits between the band and the shell, so
+   the sibling combinator has to be general, not adjacent. */
+.lab-heading-band ~ .shell { padding-top: 32px; }
+
+@media (max-width: 720px) {
+  .lab-heading-band { padding: 48px 18px 0; }
+}
+@media (max-width: 480px) {
+  .lab-heading-band { padding: 40px 14px 0; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   v4.1 — Fit-to-screen guarantees
+   The header used to overflow between ~1025px and ~1730px once the
+   engine reported a long backbone name (neural · tf_efficientnetv2_s)
+   and the signed-in profile badge replaced the Sign In button: the
+   brand wrapped to three lines and the account widget was pushed off
+   the right edge. These rules make that structurally impossible at
+   any width rather than tuning breakpoints per chip length.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Safety net. `clip` rather than `hidden` because `hidden` would make
+   the root a scroll container and break `position: sticky` on the bar. */
+html { overflow-x: clip; }
+body { overflow-x: clip; max-width: 100%; }
+
+/* Three header zones with explicit shrink behaviour. The account
+   widget is the one control that must never be clipped, so it is the
+   only zone that refuses to shrink. */
+.bar { flex-wrap: nowrap; gap: 16px; }
+.bar-left  { flex: 0 1 auto; min-width: 0; }
+.bar-nav   { flex: 0 1 auto; min-width: 0; }
+.bar-right { flex: 0 0 auto; min-width: 0; }
+
+/* Brand truncates instead of wrapping the bar to a second row. */
+.brand-link { min-width: 0; }
+.brand-text { min-width: 0; }
+.brand-name, .brand-sub {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.brand-emblem, .brand-logo { flex: 0 0 auto; }
+
+/* Chips are advisory — the authoritative runtime values are in the
+   Results section — so they truncate and drop out as space runs out. */
+.bar-meta { flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.bar-meta .chip {
+  max-width: 200px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; flex: 0 1 auto; min-width: 0;
+}
+@media (max-width: 1800px) { .bar-meta .chip:nth-child(n+3) { display: none; } }
+@media (max-width: 1600px) { .bar-meta .chip:nth-child(n+2) { display: none; } }
+@media (max-width: 1480px) { .bar-meta { display: none; } }
+
+/* Profile badge: cap the *text* so a long name cannot widen the bar.
+   The cap belongs on the name/ID block rather than the whole badge —
+   the badge also holds the settings and sign-out controls, and capping
+   the lot squeezes the name to a couple of characters. */
+.user-profile-badge { min-width: 0; }
+.user-info { min-width: 0; max-width: 160px; }
+.user-name, .user-role {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* The strapline is the first thing worth losing on a narrow bar. */
+@media (max-width: 900px) { .brand-sub { display: none; } }
+
+/* Long filenames in the case list must not widen the rail. */
+.recent-list li, .recent-name, .recent-list a {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Verdict figures and monospace readouts wrap rather than push wide. */
+.verdict-card, .verdict-lead, .verdict-figure { min-width: 0; }
+.verdict-file, .gauge-read, .specs dd { overflow-wrap: anywhere; }
+
+/* Between roughly 1150px and 1400px the full nav still fits, but only
+   once the strapline goes and the item spacing tightens. Worth doing:
+   1280px is a very common laptop width and the drawer would otherwise
+   kick in while a third of the bar sat empty. */
+@media (max-width: 1400px) {
+  .brand-sub { display: none; }
+  .bar { gap: 12px; }
+  .bar-nav { gap: 14px; }
+  .nav-item { font-size: 12.5px; }
+  .nav-item--lab { padding: 6px 10px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   v4.2 — Account widget & settings dialog
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Header: gear + sign-out sit beside the profile badge, replacing the
+   bare × that gave no clue what it did. */
+.user-actions {
+  display: flex; align-items: center; gap: 4px;
+  margin-left: 8px; padding-left: 8px;
+  border-left: 1px solid var(--line-hair);
+  flex: 0 0 auto;
+}
+.user-action {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: 1px solid transparent; border-radius: var(--radius-sm);
+  color: var(--ink-dim); cursor: pointer; padding: 5px 7px;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.user-action:hover {
+  color: var(--cyber-cyan); background: rgba(0, 240, 255, 0.08);
+  border-color: var(--line-cyber);
+}
+.user-action--out:hover {
+  color: var(--fake); background: rgba(244, 63, 94, 0.08);
+  border-color: rgba(244, 63, 94, 0.4);
+}
+.user-action-label {
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+/* Keep the word "Sign out" wherever it fits — an icon alone is easy to
+   miss. Only below 480px, where the bar is brand + badge + menu toggle,
+   does it fall back to the icon and its tooltip. */
+@media (max-width: 480px) { .user-action-label { display: none; } }
+
+.user-profile-badge { gap: 8px; padding: 4px 6px 4px 10px; }
+
+/* ── Settings dialog ─────────────────────────────────────────── */
+.modal-card--wide { max-width: 560px; }
+.modal-header--left { text-align: left; }
+.modal-header--left .modal-subtitle { margin-bottom: 0; }
+
+.settings-identity {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 14px; margin: 16px 0 4px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--line-subtle); border-radius: var(--radius-md);
+}
+.settings-avatar {
+  width: 40px; height: 40px; border-radius: 50%; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--cyber-cyan), var(--cyber-violet));
+  color: #04121A; font-weight: 700; font-size: 15px;
+}
+.settings-identity-text { min-width: 0; flex: 1 1 140px; }
+.settings-identity-name {
+  font-weight: 600; color: var(--ink-pure); font-size: 14.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.settings-identity-email {
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.settings-stats {
+  display: flex; gap: 18px; margin: 0; flex-wrap: wrap;
+}
+.settings-stats dt {
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-dim);
+}
+.settings-stats dd {
+  margin: 2px 0 0; font-size: 12.5px; color: var(--ink-bright); font-weight: 600;
+}
+
+.settings-tabs {
+  display: flex; gap: 4px; margin: 18px 0 14px;
+  border-bottom: 1px solid var(--line-subtle);
+}
+.settings-tab {
+  background: none; border: 0; border-bottom: 2px solid transparent;
+  color: var(--ink-mid); font-size: 13px; font-weight: 600;
+  padding: 8px 12px; cursor: pointer; margin-bottom: -1px;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.settings-tab:hover { color: var(--ink-bright); }
+.settings-tab.is-active {
+  color: var(--cyber-cyan); border-bottom-color: var(--cyber-cyan);
+}
+
+.settings-panel[hidden] { display: none !important; }
+
+.form-hint {
+  margin: 6px 0 0; font-size: 11.5px; color: var(--ink-dim); line-height: 1.5;
+}
+.form-input:disabled {
+  opacity: 0.6; cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Destructive action, visually separated from the ordinary save. */
+.settings-danger {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; flex-wrap: wrap;
+  margin-top: 20px; padding-top: 16px;
+  border-top: 1px solid var(--line-hair);
+}
+.settings-danger-text { display: flex; flex-direction: column; min-width: 0; }
+.settings-danger-text strong { font-size: 13px; color: var(--ink-bright); }
+.settings-danger-text span { font-size: 11.5px; color: var(--ink-dim); }
+.btn-danger {
+  flex: 0 0 auto;
+  background: rgba(244, 63, 94, 0.1); color: var(--fake);
+  border: 1px solid rgba(244, 63, 94, 0.4); border-radius: var(--radius-sm);
+  padding: 8px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  transition: background 0.15s ease;
+}
+.btn-danger:hover { background: rgba(244, 63, 94, 0.2); }
+
+@media (max-width: 520px) {
+  .settings-identity { flex-direction: column; align-items: flex-start; }
+  .settings-stats { gap: 14px; }
+  .settings-danger { flex-direction: column; align-items: stretch; }
+  .btn-danger { width: 100%; }
+}

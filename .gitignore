@@ -6,6 +6,10 @@ __pycache__/
 venv/
 env/
 .env
+# A file literally named `env` matches neither `env/` (directory) nor
+# `.env` (dotfile). This repo has one, and it holds AWS credentials.
+env
+*.env
 .Python
 
 # ---- Runtime output (contains analysed filenames + hashes) ----

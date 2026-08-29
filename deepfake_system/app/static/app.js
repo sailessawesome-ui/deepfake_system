@@ -214,10 +214,28 @@ function updateAccessState() {
           <span class="user-name">${esc(user.name || '')}</span>
           <span class="user-role">${esc(user.studentId || (user.role || '').split(' ')[0] || '')}</span>
         </div>
-        <button class="user-signout" id="signOutBtn" type="button" title="Log Out">&times;</button>
+        <div class="user-actions">
+          <button class="user-action" id="openSettingsBtn" type="button"
+                  title="Account settings" aria-label="Account settings">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
+          <button class="user-action user-action--out" id="signOutBtn" type="button"
+                  title="Sign out" aria-label="Sign out">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            <span class="user-action-label">Sign out</span>
+          </button>
+        </div>
       </div>
     `;
     $('signOutBtn')?.addEventListener('click', logoutUser);
+    $('openSettingsBtn')?.addEventListener('click', openSettingsModal);
   } else {
     // Hide detection lab workspace, display locked portal for visitors
     if (el.workspace) el.workspace.hidden = true;
@@ -1587,3 +1605,310 @@ loadStatus();
       .catch(() => {});
   }
 })();
+
+
+/* ═══════════════════════════════════════════════════════════════
+   Homepage navigation behaviour
+   Scroll spy, collapsible mobile menu, reading progress and a
+   back-to-top control. Purely presentational — nothing here
+   touches the detection pipeline.
+   ═══════════════════════════════════════════════════════════════ */
+(function initHomepageNav() {
+  const navbar = $('navbar');
+  const barNav = $('barNav');
+  const navToggle = $('navToggle');
+  const backToTop = $('backToTop');
+  const progressFill = $('scrollProgressFill');
+
+  /* Section id → the nav link that should light up for it. The lab
+     appears twice because the visitor sees the locked portal and the
+     signed-in examiner sees the workspace in the same slot. */
+  const SPY_MAP = [
+    ['hero', 'navHome'],
+    ['overview', 'navOverview'],
+    ['guide', 'navGuide'],
+    ['loggedOutPortal', 'navLab'],
+    ['workspace', 'navLab'],
+    ['results', 'navTelemetry'],
+    ['methodology', 'navMethodology'],
+    ['limitations', 'navLimits'],
+  ];
+
+  const spyTargets = SPY_MAP
+    .map(([sectionId, navId]) => ({ section: $(sectionId), link: $(navId) }))
+    .filter((t) => t.section && t.link);
+
+  const navLinks = spyTargets.map((t) => t.link);
+
+  /* ── Mobile menu ──────────────────────────────────────────── */
+  function setMenu(open) {
+    if (!barNav || !navToggle) return;
+    barNav.classList.toggle('is-open', open);
+    navToggle.setAttribute('aria-expanded', String(open));
+    navToggle.setAttribute('aria-label', open ? 'Close navigation menu' : 'Open navigation menu');
+  }
+
+  navToggle?.addEventListener('click', () => {
+    setMenu(!barNav?.classList.contains('is-open'));
+  });
+
+  /* Collapse the drawer once a destination is chosen, and after the
+     viewport grows past the breakpoint where the drawer exists. */
+  barNav?.addEventListener('click', (e) => {
+    if (e.target.closest('.nav-item')) setMenu(false);
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') setMenu(false);
+  });
+
+  const wide = window.matchMedia('(min-width: 1025px)');
+  const onWidthChange = (m) => { if (m.matches) setMenu(false); };
+  if (wide.addEventListener) wide.addEventListener('change', onWidthChange);
+  else if (wide.addListener) wide.addListener(onWidthChange);
+
+  /* ── Scroll spy, progress bar and back-to-top ─────────────── */
+  function markActive(link) {
+    navLinks.forEach((l) => l.classList.toggle('is-active', l === link));
+  }
+
+  function onScroll() {
+    const y = window.scrollY || document.documentElement.scrollTop;
+    const navH = navbar ? navbar.offsetHeight : 66;
+    const probe = y + navH + 40;
+
+    /* Walk the sections in document order and keep the last one whose
+       top has passed the probe line. Hidden sections are skipped so the
+       signed-out portal and the signed-in workspace never both count. */
+    let active = null;
+    for (const t of spyTargets) {
+      if (t.section.hidden || t.section.offsetParent === null) continue;
+      if (t.section.offsetTop <= probe) active = t.link;
+    }
+    markActive(active || navLinks[0]);
+
+    if (progressFill) {
+      const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+      const pct = scrollable > 0 ? Math.min(100, (y / scrollable) * 100) : 0;
+      progressFill.style.width = pct.toFixed(2) + '%';
+    }
+
+    if (backToTop) backToTop.hidden = y < 600;
+  }
+
+  /* Coalesce scroll work into one frame so the page stays smooth. */
+  let ticking = false;
+  function requestScrollUpdate() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => { ticking = false; onScroll(); });
+  }
+
+  window.addEventListener('scroll', requestScrollUpdate, { passive: true });
+  window.addEventListener('resize', requestScrollUpdate);
+
+  backToTop?.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  onScroll();
+})();
+
+
+/* ═══════════════════════════════════════════════════════════════
+   Account settings
+   Profile details and password changes, both persisted server-side
+   and written to the audit log. Reachable from the gear beside the
+   profile badge in the header.
+   ═══════════════════════════════════════════════════════════════ */
+
+const settingsEl = {
+  modal: $('settingsModal'), close: $('closeSettingsBtn'),
+  alert: $('settingsAlert'),
+  tabProfile: $('tabProfile'), tabSecurity: $('tabSecurity'),
+  profileForm: $('profileForm'), passwordForm: $('passwordForm'),
+  avatar: $('settingsAvatar'), name: $('settingsName'), email: $('settingsEmail'),
+  created: $('settingsCreated'), lastLogin: $('settingsLastLogin'),
+  loginCount: $('settingsLoginCount'),
+  setName: $('setName'), setStudentId: $('setStudentId'),
+  setRole: $('setRole'), setEmail: $('setEmail'),
+  currentPw: $('setCurrentPw'), newPw: $('setNewPw'), confirmPw: $('setConfirmPw'),
+  saveProfileBtn: $('saveProfileBtn'), savePasswordBtn: $('savePasswordBtn'),
+  logoutAllBtn: $('logoutAllBtn'),
+};
+
+function showSettingsAlert(msg, isSuccess = false) {
+  if (!settingsEl.alert) return;
+  settingsEl.alert.hidden = false;
+  settingsEl.alert.textContent = msg;
+  settingsEl.alert.className = `auth-alert ${isSuccess ? 'is-success' : ''}`;
+}
+
+function clearSettingsAlert() {
+  if (!settingsEl.alert) return;
+  settingsEl.alert.hidden = true;
+  settingsEl.alert.textContent = '';
+}
+
+/* Dates come back as ISO strings from the server; show them in the
+   examiner's own locale rather than raw UTC. */
+function formatStamp(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric',
+  });
+}
+
+function setSettingsTab(which) {
+  const isProfile = which === 'profile';
+  settingsEl.tabProfile?.classList.toggle('is-active', isProfile);
+  settingsEl.tabProfile?.setAttribute('aria-selected', String(isProfile));
+  settingsEl.tabSecurity?.classList.toggle('is-active', !isProfile);
+  settingsEl.tabSecurity?.setAttribute('aria-selected', String(!isProfile));
+  if (settingsEl.profileForm) settingsEl.profileForm.hidden = !isProfile;
+  if (settingsEl.passwordForm) settingsEl.passwordForm.hidden = isProfile;
+  clearSettingsAlert();
+}
+
+/* Fill the dialog from the session user. Everything here is text the
+   account holder typed, so it goes in via textContent / value rather
+   than innerHTML. */
+function fillSettings(user) {
+  if (!user) return;
+  if (settingsEl.avatar) settingsEl.avatar.textContent = user.initials || '??';
+  if (settingsEl.name) settingsEl.name.textContent = user.name || '';
+  if (settingsEl.email) settingsEl.email.textContent = user.email || '';
+  if (settingsEl.created) settingsEl.created.textContent = formatStamp(user.created_at);
+  if (settingsEl.lastLogin) settingsEl.lastLogin.textContent = formatStamp(user.last_login_at);
+  if (settingsEl.loginCount) settingsEl.loginCount.textContent = String(user.login_count ?? 0);
+
+  if (settingsEl.setName) settingsEl.setName.value = user.name || '';
+  if (settingsEl.setStudentId) settingsEl.setStudentId.value = user.studentId || '';
+  if (settingsEl.setEmail) settingsEl.setEmail.value = user.email || '';
+  if (settingsEl.setRole && user.role) {
+    // Only select a role the dropdown actually offers, so an unknown
+    // stored value does not silently blank the control.
+    const match = [...settingsEl.setRole.options].some((o) => o.value === user.role);
+    if (match) settingsEl.setRole.value = user.role;
+  }
+}
+
+function openSettingsModal() {
+  if (!isLoggedIn()) { openAuthModal(); return; }
+  fillSettings(getCurrentUser());
+  setSettingsTab('profile');
+  if (settingsEl.currentPw) settingsEl.currentPw.value = '';
+  if (settingsEl.newPw) settingsEl.newPw.value = '';
+  if (settingsEl.confirmPw) settingsEl.confirmPw.value = '';
+  if (settingsEl.modal) {
+    settingsEl.modal.hidden = false;
+    settingsEl.modal.style.display = 'flex';
+  }
+  document.body.style.overflow = 'hidden';
+  settingsEl.setName?.focus();
+}
+
+function closeSettingsModal() {
+  if (settingsEl.modal) {
+    settingsEl.modal.hidden = true;
+    settingsEl.modal.style.display = 'none';
+  }
+  document.body.style.overflow = '';
+  clearSettingsAlert();
+}
+
+settingsEl.close?.addEventListener('click', closeSettingsModal);
+settingsEl.tabProfile?.addEventListener('click', () => setSettingsTab('profile'));
+settingsEl.tabSecurity?.addEventListener('click', () => setSettingsTab('security'));
+
+/* Backdrop click and Escape both close, matching the auth modal. */
+settingsEl.modal?.addEventListener('click', (e) => {
+  if (e.target === settingsEl.modal) closeSettingsModal();
+});
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && settingsEl.modal && !settingsEl.modal.hidden) {
+    closeSettingsModal();
+  }
+});
+
+settingsEl.profileForm?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearSettingsAlert();
+  const btn = settingsEl.saveProfileBtn;
+  const label = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  try {
+    const data = await api('/api/auth/profile', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        name: settingsEl.setName?.value || '',
+        studentId: settingsEl.setStudentId?.value || '',
+        role: settingsEl.setRole?.value || '',
+      }),
+    });
+    CURRENT_USER = data && data.user ? data.user : CURRENT_USER;
+    updateAccessState();          // repaint the header badge with the new name
+    fillSettings(CURRENT_USER);
+    showSettingsAlert('Profile updated.', true);
+  } catch (err) {
+    showSettingsAlert(err.message || 'Could not save those changes.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+  }
+});
+
+settingsEl.passwordForm?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearSettingsAlert();
+
+  const next = settingsEl.newPw?.value || '';
+  if (next !== (settingsEl.confirmPw?.value || '')) {
+    showSettingsAlert('The two new passwords do not match.');
+    return;
+  }
+
+  const btn = settingsEl.savePasswordBtn;
+  const label = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Updating…'; }
+
+  try {
+    const data = await api('/api/auth/password', {
+      method: 'POST',
+      body: JSON.stringify({
+        currentPassword: settingsEl.currentPw?.value || '',
+        newPassword: next,
+      }),
+    });
+    if (settingsEl.currentPw) settingsEl.currentPw.value = '';
+    if (settingsEl.newPw) settingsEl.newPw.value = '';
+    if (settingsEl.confirmPw) settingsEl.confirmPw.value = '';
+    const n = (data && data.other_sessions_revoked) || 0;
+    showSettingsAlert(
+      n > 0
+        ? `Password updated. ${n} other session${n === 1 ? '' : 's'} signed out.`
+        : 'Password updated.',
+      true,
+    );
+  } catch (err) {
+    showSettingsAlert(err.message || 'Could not update the password.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+  }
+});
+
+settingsEl.logoutAllBtn?.addEventListener('click', async () => {
+  // This ends the session in front of us too, so confirm before doing it.
+  if (!window.confirm('Sign out of every device, including this one?')) return;
+  try {
+    await api('/api/auth/logout-all', { method: 'POST' });
+  } catch {
+    // The cookie is cleared server-side either way; fall through to
+    // resetting the UI so it cannot show a stale signed-in state.
+  }
+  CURRENT_USER = null;
+  closeSettingsModal();
+  updateAccessState();
+});

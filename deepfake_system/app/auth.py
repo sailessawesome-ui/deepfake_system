@@ -159,6 +159,61 @@ class AuthStore:
             raise AuthError("An account with that email already exists.")
         return public_user(record)
 
+    # ------------------------------------------------------------ profile
+    def update_profile(self, user_id: str, name: str, student_id: str = "",
+                       role: str = "") -> dict:
+        """Change the details an examiner may edit about themselves.
+
+        Email is deliberately not among them: user_id is derived from it,
+        so changing it would orphan the account and every audit entry
+        that points at the old id.
+        """
+        user = self.get_user(user_id)
+        if not user:
+            raise AuthError("That account no longer exists.")
+
+        name = (name or "").strip()
+        if not name:
+            raise AuthError("A name is required.")
+        if len(name) > 120:
+            raise AuthError("That name is too long.")
+
+        student_id = (student_id or "").strip().upper()
+        if len(student_id) > 40:
+            raise AuthError("That student or staff ID is too long.")
+
+        user["name"] = name
+        user["student_id"] = student_id
+        # An unrecognised role keeps the current one rather than silently
+        # demoting the account to the default.
+        user["role"] = role if role in ROLES else user.get("role", ROLES[0])
+        user["initials"] = _initials(name)
+        user["updated_at"] = _iso(_now())
+
+        if not self.users.put(user):
+            raise AuthError("The account store is unavailable right now.")
+        return public_user(user)
+
+    def change_password(self, user_id: str, current_password: str,
+                        new_password: str) -> None:
+        """Re-check the current password before accepting a new one, so a
+        borrowed unlocked session cannot lock the real owner out."""
+        user = self.get_user(user_id)
+        if not user:
+            raise AuthError("That account no longer exists.")
+        if not verify_password(current_password or "",
+                               str(user.get("password_hash", ""))):
+            raise AuthError("The current password is not correct.")
+        if len(new_password or "") < 8:
+            raise AuthError("Use at least 8 characters for the new password.")
+        if verify_password(new_password, str(user.get("password_hash", ""))):
+            raise AuthError("The new password must differ from the current one.")
+
+        user["password_hash"] = hash_password(new_password)
+        user["updated_at"] = _iso(_now())
+        if not self.users.put(user):
+            raise AuthError("The account store is unavailable right now.")
+
     # ------------------------------------------------------ authentication
     def get_user(self, user_id: str) -> dict | None:
         return self.users.get({"user_id": user_id})
@@ -251,6 +306,21 @@ class AuthStore:
                                          user_id, limit=200)
         n = 0
         for r in rows:
+            if self.sessions.delete({"session_id": r["session_id"]}):
+                n += 1
+        return n
+
+    def revoke_others(self, user_id: str, keep_token: str) -> int:
+        """Sign out every device except the one making the request — what
+        a password change should do, since logging the owner out of the
+        session they just used is only friction."""
+        keep = _token_id(keep_token) if keep_token else ""
+        rows = self.sessions.query_index("user_id-index", "user_id",
+                                         user_id, limit=200)
+        n = 0
+        for r in rows:
+            if r.get("session_id") == keep:
+                continue
             if self.sessions.delete({"session_id": r["session_id"]}):
                 n += 1
         return n
