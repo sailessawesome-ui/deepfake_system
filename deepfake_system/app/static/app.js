@@ -37,6 +37,7 @@ const el = {
   empty: $('empty'), working: $('working'), result: $('result'),
   failure: $('failure'), failureMsg: $('failureMsg'),
   workingStep: $('workingStep'), workingFile: $('workingFile'), workingFill: $('workingFill'),
+  scannerVideo: $('scannerVideo'),
 
   // Verdict & Forensic Telemetry
   verdict: $('verdict'), verdictWord: $('verdictWord'), verdictPill: $('verdictPill'),
@@ -513,6 +514,34 @@ const STEPS = [
   'Computing final fake score against decision threshold',
 ];
 
+/* ── Scanning-panel video preview ─────────────────────────────────
+   Purely cosmetic — plays the file the user just uploaded, muted,
+   behind the scan-line effect. Never touches the analysis itself. */
+let scannerObjectUrl = null;
+
+function showScannerPreview(file) {
+  const v = el.scannerVideo;
+  if (!v || !file) return;
+  if (scannerObjectUrl) URL.revokeObjectURL(scannerObjectUrl);
+  scannerObjectUrl = URL.createObjectURL(file);
+  v.src = scannerObjectUrl;
+  v.hidden = false;
+  v.play().catch(() => {});
+}
+
+function hideScannerPreview() {
+  const v = el.scannerVideo;
+  if (!v) return;
+  v.pause();
+  v.hidden = true;
+  v.removeAttribute('src');
+  v.load();
+  if (scannerObjectUrl) {
+    URL.revokeObjectURL(scannerObjectUrl);
+    scannerObjectUrl = null;
+  }
+}
+
 async function send(file) {
   if (!isLoggedIn()) {
     openAuthModal();
@@ -521,6 +550,7 @@ async function send(file) {
 
   show('working');
   el.workingFile.textContent = `${file.name} · ${(file.size / 1048576).toFixed(1)} MB`;
+  showScannerPreview(file);
 
   let i = 0;
   el.workingStep.textContent = STEPS[0];
@@ -607,6 +637,7 @@ function show(which) {
   el.working.hidden = which !== 'working';
   el.result.hidden = which !== 'result';
   el.failure.hidden = which !== 'failure';
+  if (which !== 'working') hideScannerPreview();
 }
 
 /* ── Interactive Demo Evidence Simulation ───────────────────────── */

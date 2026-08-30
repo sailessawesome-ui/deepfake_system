@@ -581,13 +581,26 @@ button { font: inherit; color: inherit; }
   box-shadow: 0 0 30px rgba(0, 240, 255, 0.1);
 }
 .scanner-box {
-  height: 160px; border: 1px solid var(--line-cyber); border-radius: var(--radius-md);
-  background: 
+  height: clamp(200px, 32vw, 300px); border: 1px solid var(--line-cyber);
+  border-radius: var(--radius-md);
+  background:
     radial-gradient(circle at center, rgba(0, 240, 255, 0.08) 0%, transparent 70%),
     repeating-linear-gradient(0deg, transparent 0, transparent 15px, rgba(0, 240, 255, 0.03) 16px),
     var(--bg-card-hover);
   position: relative; overflow: hidden; margin-bottom: 24px;
   display: flex; align-items: center; justify-content: center;
+}
+/* The uploaded file itself, playing muted behind the scan effects — so
+   the "scanning" animation reads as scanning something real. */
+.scanner-video {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; background: #000;
+}
+.scanner-video-scrim {
+  position: absolute; inset: 0;
+  background:
+    linear-gradient(180deg, rgba(7, 10, 15, 0.1) 0%, rgba(7, 10, 15, 0.6) 100%),
+    radial-gradient(circle at center, rgba(0, 240, 255, 0.05) 0%, transparent 70%);
 }
 .scanner-sweep {
   position: absolute; top: 0; bottom: 0; width: 140px;
