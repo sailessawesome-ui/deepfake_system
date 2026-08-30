@@ -1,7 +1,20 @@
 """Central configuration for the deepfake detection system."""
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+# Load the repo's `env` file before any setting below reads os.environ.
+# Without this every DFD_* value in that file is inert and the app runs
+# on local JSON no matter what the file says.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+try:
+    from app.envfile import load as _load_env, summary as _env_summary
+    ENV_INFO = _load_env()
+    if os.environ.get("DFD_ENV_QUIET", "").strip().lower() not in ("1", "true"):
+        print(_env_summary(ENV_INFO))
+except Exception as _exc:                     # never block startup on this
+    ENV_INFO = {"path": None, "found": 0, "applied": [], "error": str(_exc)}
 
 # Where a trained run lives when the app is served. Defaults to runs/v1
 # next to this file so a checkpoint copied there is found on any machine;
@@ -115,22 +128,72 @@ class AudioConfig:
     max_seconds: float = 60.0
 
 
-def _env_bool(name: str, default: bool) -> bool:
-    raw = os.environ.get(name)
-    if raw is None:
+def _env(*names: str, default: str = "") -> str:
+    """First of `names` that is set. Lets DFD_* (the repo's `env` file)
+    and the older DF_* spellings coexist without duplicating defaults."""
+    for name in names:
+        value = os.environ.get(name)
+        if value is not None and value.strip() != "":
+            return value.strip()
+    return default
+
+
+def _env_bool(*names: str, default: bool = False) -> bool:
+    raw = _env(*names)
+    if raw == "":
         return default
-    return raw.strip().lower() in ("1", "true", "yes", "on")
+    return raw.lower() in ("1", "true", "yes", "on")
 
 
 @dataclass
 class StoreConfig:
-    # Zero-retention local forensic record storage (ISO/IEC 27037 compliant)
+    # Zero-retention forensic record storage (ISO/IEC 27037 compliant).
+    # The *video* is never stored either way; this only decides where the
+    # verdict, the evidence hash and the account records live.
     enabled: bool = True
     local_path: Path = Path("./reports/reports.jsonl")
+
+    # 'dynamodb' uses AWS (IR 2.4.4); anything else keeps the local JSON
+    # files. Named DFD_DB_BACKEND to match the repo's `env` file.
+    backend: str = _env("DFD_DB_BACKEND", "DF_DB_BACKEND",
+                        default="local").strip().lower()
+    region: str = _env("AWS_REGION", "AWS_DEFAULT_REGION",
+                       default="ap-southeast-5")
+    prefix: str = _env("DFD_TABLE_PREFIX", default="dfd_")
+    billing_mode: str = _env("DFD_DYNAMODB_BILLING_MODE",
+                             default="PAY_PER_REQUEST")
+
+    @property
+    def use_dynamodb(self) -> bool:
+        return self.backend == "dynamodb"
 
     @property
     def local_dir(self) -> Path:
         return self.local_path.parent
+
+    # Table names. These four already exist in the account; audit_log is
+    # created by scripts/create_tables.py. Each is individually
+    # overridable for anyone pointing at a different account.
+    @property
+    def users_table(self) -> str:
+        return _env("DFD_TABLE_USERS", default=f"{self.prefix}users")
+
+    @property
+    def sessions_table(self) -> str:
+        return _env("DFD_TABLE_SESSIONS", default=f"{self.prefix}sessions")
+
+    @property
+    def analyses_table(self) -> str:
+        return _env("DFD_TABLE_ANALYSES", default=f"{self.prefix}analyses")
+
+    @property
+    def login_attempts_table(self) -> str:
+        return _env("DFD_TABLE_LOGIN_ATTEMPTS",
+                    default=f"{self.prefix}login_attempts")
+
+    @property
+    def audit_table(self) -> str:
+        return _env("DFD_TABLE_AUDIT", default=f"{self.prefix}audit_log")
 
 
 @dataclass
@@ -138,25 +201,37 @@ class AuthConfig:
     """Session auth backed by the DynamoDB users/sessions tables."""
     # PBKDF2-HMAC-SHA256. Stdlib, so no compiled dependency has to build
     # in the Railway image. OWASP's 2023 floor for this KDF is 600k.
-    pbkdf2_rounds: int = int(os.environ.get("DF_PBKDF2_ROUNDS", "600000"))
-    session_days: int = int(os.environ.get("DF_SESSION_DAYS", "7"))
-    cookie_name: str = os.environ.get("DF_COOKIE_NAME", "df_session")
+    pbkdf2_rounds: int = int(_env("DFD_PBKDF2_ROUNDS", "DF_PBKDF2_ROUNDS",
+                                  default="600000"))
+    session_days: int = int(_env("DFD_SESSION_DAYS", "DF_SESSION_DAYS",
+                                 default="7"))
+    cookie_name: str = _env("DFD_COOKIE_NAME", "DF_COOKIE_NAME",
+                            default="df_session")
 
-    # Railway terminates TLS, so cookies must be Secure in production and
-    # must not be over plain http on localhost.
-    cookie_secure: bool = _env_bool("DF_COOKIE_SECURE",
-                                    bool(os.environ.get("RAILWAY_ENVIRONMENT")))
+    # A proxy that terminates TLS means cookies must be Secure in
+    # production, and must not be over plain http on localhost. The `env`
+    # file sets DFD_COOKIE_SECURE=0 for local work.
+    cookie_secure: bool = _env_bool(
+        "DFD_COOKIE_SECURE", "DF_COOKIE_SECURE",
+        default=bool(os.environ.get("RAILWAY_ENVIRONMENT")))
 
     # Lock an account after this many consecutive failures.
-    max_failed: int = int(os.environ.get("DF_MAX_FAILED_LOGINS", "8"))
-    lockout_minutes: int = int(os.environ.get("DF_LOCKOUT_MINUTES", "15"))
+    max_failed: int = int(_env("DFD_MAX_FAILED_LOGINS", "DF_MAX_FAILED_LOGINS",
+                               default="8"))
+    lockout_minutes: int = int(_env("DFD_LOCKOUT_MINUTES", "DF_LOCKOUT_MINUTES",
+                                    default="15"))
 
     # Leave empty to let anyone register. Set to a comma-separated list of
     # domains to restrict sign-up, e.g. "apu.edu.my,staffemail.apu.edu.my".
-    allowed_domains: str = os.environ.get("DF_ALLOWED_EMAIL_DOMAINS", "")
+    allowed_domains: str = _env("DFD_ALLOWED_EMAIL_DOMAINS",
+                                "DF_ALLOWED_EMAIL_DOMAINS", default="")
 
     # When true an unauthenticated caller cannot reach /api/analyse.
-    require_login: bool = _env_bool("DF_REQUIRE_LOGIN", True)
+    require_login: bool = _env_bool("DFD_REQUIRE_LOGIN", "DF_REQUIRE_LOGIN",
+                                    default=True)
+
+    # DFD_MAX_UPLOAD_MB in the env file; the server enforces it.
+    max_upload_mb: int = int(_env("DFD_MAX_UPLOAD_MB", default="250"))
 
 
 @dataclass
@@ -175,6 +250,13 @@ class InferConfig:
     calibration_file: Path = _RUNS / "calibration.json"
     checkpoint: Path = _RUNS / "best.pt"
     min_face_conf: float = 0.9
+
+    # IR 3.4.1 UI/UX: explainable visual cues. Each explained frame costs
+    # one extra forward and backward pass, so this trades directly against
+    # the "near real-time" non-functional requirement. Three is enough to
+    # show a pattern without noticeably moving the 10-15 s budget; set 0
+    # to turn the feature off.
+    explain_frames: int = int(_env("DFD_EXPLAIN_FRAMES", default="3"))
 
     # IR 3.4.1 UI/UX: "a definite Real or Fake tag". The system defaults
     # to three states because refusing to guess is what keeps false

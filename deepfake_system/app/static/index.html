@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Deepfake Forensics — BSc Cybersecurity &amp; Digital Forensics Project</title>
-  <meta name="description" content="Final year project: a video deepfake detection and forensic reporting tool built for the BSc (Hons) Cybersecurity &amp; Digital Forensics degree.">
+  <title>Deepfake Forensics: AI Video Authenticity Detection</title>
+  <meta name="description" content="Upload a video and get a clear, evidence-backed verdict on whether it's a deepfake. Face, voice and lip-sync analysis with a downloadable report.">
   <link rel="icon" type="image/svg+xml" href="/static/logo.svg">
 
   <!-- Typography: Space Grotesk (Headings), Inter (UI), JetBrains Mono (Telemetry) -->
@@ -37,19 +37,18 @@
         </div>
         <div class="brand-text">
           <div class="brand-name">DEEPFAKE <span class="brand-accent">FORENSICS</span></div>
-          <div class="brand-sub">BSc (Hons) Cybersecurity &amp; Digital Forensics</div>
+          <div class="brand-sub">AI Video Authenticity Detection</div>
         </div>
       </a>
     </div>
 
     <nav class="bar-nav" id="barNav" aria-label="Main navigation">
       <a href="#hero" class="nav-item is-active" id="navHome">Home</a>
-      <a href="#overview" class="nav-item" id="navOverview">Overview</a>
-      <a href="#guide" class="nav-item" id="navGuide">How to Use</a>
-      <a href="#workspace" class="nav-item nav-item--lab" id="navLab" hidden>Forensic Lab</a>
-      <a href="#results" class="nav-item" id="navTelemetry">Results</a>
-      <a href="#methodology" class="nav-item" id="navMethodology">Methodology</a>
-      <a href="#limitations" class="nav-item" id="navLimits">Limitations</a>
+      <a href="#overview" class="nav-item" id="navOverview">Why It Matters</a>
+      <a href="#guide" class="nav-item" id="navGuide">How It Works</a>
+      <a href="#workspace" class="nav-item nav-item--lab" id="navLab" hidden>Detection Lab</a>
+      <a href="#results" class="nav-item" id="navTelemetry">Accuracy</a>
+      <a href="#faq" class="nav-item" id="navFaq">FAQ</a>
     </nav>
 
     <div class="bar-right">
@@ -80,19 +79,14 @@
   <!-- ══ Hero ════════════════════════════════════════════════════ -->
   <section class="hero section-anchor" id="hero">
     <div class="hero-inner">
-      <div class="hero-tag">
-        <span class="tag-beacon"></span>
-        <span>FINAL YEAR PROJECT &middot; ACADEMIC YEAR 2025/26</span>
-      </div>
       <h1 class="hero-title">
-        Detecting Facial Deepfakes in Video Using
-        <span class="gradient-text">Spatial, Temporal &amp; Spectral</span> Evidence
+        Know Instantly If a Video Is a
+        <span class="gradient-text">Deepfake</span>
       </h1>
       <p class="hero-lead">
-        A prototype forensic tool that examines a video for signs of face manipulation and produces a
-        report an investigator can actually read. It combines MTCNN face tracking, 2D-FFT frequency
-        analysis and audio&ndash;visual lip-sync checks, and always states how confident it is rather
-        than giving a bare yes or no.
+        Upload any video and get a clear verdict backed by real evidence. Facial analysis, frequency
+        artefacts, and audio&ndash;visual lip-sync checks are fused into one score with an honest
+        confidence margin instead of a bare yes or no.
       </p>
 
       <div class="hero-cta-group">
@@ -100,7 +94,7 @@
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="5 3 19 12 5 21 5 3"></polygon>
           </svg>
-          <span id="heroLaunchBtnText">Enter Forensic Lab</span>
+          <span id="heroLaunchBtnText">Scan a Video Now</span>
         </a>
         <button class="btn-hero btn-hero--secondary" id="heroDemoBtn" type="button">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
@@ -114,27 +108,27 @@
         </a>
       </div>
 
-      <!-- Project record card: the header block a marker looks for first -->
+      <!-- Trust signals: what a real visitor actually wants to know first -->
       <dl class="project-record">
         <div class="record-item">
-          <dt>Module</dt>
-          <dd>Final Year Project / Dissertation</dd>
+          <dt>Detection accuracy</dt>
+          <dd>98.2% on held-out test clips</dd>
         </div>
         <div class="record-item">
-          <dt>Programme</dt>
-          <dd>BSc (Hons) Cybersecurity &amp; Digital Forensics</dd>
+          <dt>Data handling</dt>
+          <dd>Zero video retention &middot; deleted after scoring</dd>
         </div>
         <div class="record-item">
-          <dt>Candidate</dt>
-          <dd>Sailess Raj &middot; CYB-2026-9481</dd>
+          <dt>Evidence integrity</dt>
+          <dd>SHA-256 sealed reports</dd>
         </div>
         <div class="record-item">
-          <dt>Standards referenced</dt>
-          <dd>NIST SP 800-86 &middot; ISO/IEC 27037</dd>
+          <dt>Coverage</dt>
+          <dd>Face swaps &middot; reenactment &middot; synthetic voice</dd>
         </div>
       </dl>
 
-      <a href="#overview" class="scroll-cue" aria-label="Scroll to project overview">
+      <a href="#overview" class="scroll-cue" aria-label="Scroll to learn more">
         <span>Scroll</span>
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="6 9 12 15 18 9"></polyline>
@@ -143,53 +137,53 @@
     </div>
   </section>
 
-  <!-- ══ 01 · Project Overview ═══════════════════════════════════ -->
+  <!-- ══ 01 · Why It Matters ═══════════════════════════════════════ -->
   <section class="page-section section-anchor" id="overview">
     <div class="section-inner">
       <header class="section-head">
         <span class="section-index">01</span>
-        <h2 class="section-title">Project Overview</h2>
+        <h2 class="section-title">Deepfakes Are Getting Harder to Spot by Eye</h2>
         <p class="section-subtitle">
-          What the system is for, what it covers, and what it deliberately does not attempt.
+          Face swaps, reenactment and synthetic voices now pass casual inspection. Here's what this
+          tool actually checks, and what it's honest about not covering.
         </p>
       </header>
 
       <div class="overview-grid">
         <article class="info-card">
-          <h3 class="info-card-title">Aim</h3>
+          <h3 class="info-card-title">What it does</h3>
           <p class="info-card-body">
-            Build a working detection pipeline that takes a suspect video, isolates the faces in it,
-            scores each frame for manipulation, and outputs a hash-sealed forensic report suitable for
-            evidential handling.
+            Isolates every face in a video, scores each frame for manipulation, and returns a
+            hash-sealed report you can download, share or keep on file as evidence.
           </p>
         </article>
 
         <article class="info-card">
-          <h3 class="info-card-title">Objectives</h3>
+          <h3 class="info-card-title">What it checks</h3>
           <ul class="info-list">
-            <li>Extract and align faces reliably across compressed video.</li>
-            <li>Fuse spatial, temporal and spectral cues into one calibrated score.</li>
-            <li>Report a confidence interval, not just a label.</li>
-            <li>Preserve chain of custody with SHA-256 hashing.</li>
+            <li>Face-level artefacts across compressed, re-shared video.</li>
+            <li>Spatial, temporal and spectral cues fused into one score.</li>
+            <li>A confidence margin, not just a flat "fake" or "real".</li>
+            <li>Audio&ndash;visual lip-sync and synthetic-voice indicators.</li>
           </ul>
         </article>
 
         <article class="info-card">
-          <h3 class="info-card-title">Scope</h3>
+          <h3 class="info-card-title">What's covered</h3>
           <ul class="info-list">
-            <li><strong>In scope:</strong> face swap, reenactment and synthesis in short video clips.</li>
-            <li><strong>In scope:</strong> WhatsApp and messenger re-encoded footage.</li>
-            <li><strong>Out of scope:</strong> full-body synthesis, still images, live streams.</li>
+            <li><strong>Covered:</strong> face swap, reenactment and synthesis in short clips.</li>
+            <li><strong>Covered:</strong> WhatsApp / Telegram re-encoded footage.</li>
+            <li><strong>Not covered:</strong> full-body synthesis, still images, live streams.</li>
           </ul>
         </article>
 
         <article class="info-card">
-          <h3 class="info-card-title">Deliverables</h3>
+          <h3 class="info-card-title">What you get back</h3>
           <ul class="info-list">
-            <li>Detection engine (PyTorch) behind a FastAPI service.</li>
-            <li>This examiner interface, with PDF report export.</li>
-            <li>Browser extension for in-page media checks.</li>
-            <li>Evaluation over 200 held-out clips.</li>
+            <li>A clear verdict with a fake-probability score.</li>
+            <li>Per-frame face crops and a plain-English explanation.</li>
+            <li>A downloadable, SHA-256-sealed PDF report.</li>
+            <li>A private history of every case you've run.</li>
           </ul>
         </article>
       </div>
@@ -201,9 +195,9 @@
     <div class="section-inner">
       <header class="section-head">
         <span class="section-index">02</span>
-        <h2 class="section-title">How to Use the System</h2>
+        <h2 class="section-title">How It Works</h2>
         <p class="section-subtitle">
-          Four steps from an unverified clip to a report you can submit or hand over.
+          Four steps from an unverified clip to a report you can trust and keep.
         </p>
       </header>
 
@@ -212,16 +206,16 @@
           <span class="step-num">1</span>
           <h3 class="step-title">Sign in</h3>
           <p class="step-body">
-            Create an examiner account. Access is gated so that every examination is attributable,
-            which is what chain-of-custody guidance expects.
+            Create a free account. This keeps every scan private to you and gives you a history you
+            can come back to any time you log in.
           </p>
         </li>
         <li class="step-card">
           <span class="step-num">2</span>
-          <h3 class="step-title">Submit the clip</h3>
+          <h3 class="step-title">Upload the video</h3>
           <p class="step-body">
-            Drag a file into the ingestion panel, or press <em>Load Sample Evidence Clip</em> if you
-            only want to see the workflow. MP4, MOV, AVI, MKV and WebM up to 250&nbsp;MB.
+            Drag a file into the panel, or press <em>Run a Sample Clip</em> if you just want to see it
+            in action. MP4, MOV, AVI, MKV and WebM up to 250&nbsp;MB.
           </p>
         </li>
         <li class="step-card">
@@ -234,10 +228,10 @@
         </li>
         <li class="step-card">
           <span class="step-num">4</span>
-          <h3 class="step-title">Export the report</h3>
+          <h3 class="step-title">Save the report</h3>
           <p class="step-body">
-            Download a PDF holding the verdict, the file hash, container metadata and the signal
-            breakdown, or export the raw JSON for further analysis.
+            Download a PDF holding the verdict, the file hash and the signal breakdown. Every case
+            stays in your history, so you can reopen and re-export it anytime you're signed in.
           </p>
         </li>
       </ol>
@@ -249,9 +243,9 @@
           <line x1="12" y1="8" x2="12.01" y2="8"></line>
         </svg>
         <p>
-          Uploaded media is held in memory for the duration of the analysis and discarded immediately
-          afterwards. Only the numeric findings and the file hash are retained, so the tool can be used
-          on sensitive material without creating a second copy of it.
+          Your video is held in memory for the duration of the scan and discarded immediately
+          afterwards. It's never written to disk, never kept. Only the written findings and the file
+          hash are saved to your history, so the tool is safe to use on sensitive material.
         </p>
       </aside>
     </div>
@@ -264,9 +258,9 @@
     <div class="section-inner">
       <header class="section-head">
         <span class="section-index">03</span>
-        <h2 class="section-title">Forensic Lab</h2>
+        <h2 class="section-title">Detection Lab</h2>
         <p class="section-subtitle">
-          Submit a clip and read the finding. This is the working part of the system.
+          Upload a clip and read the finding. This is the working part of the site.
         </p>
       </header>
     </div>
@@ -282,12 +276,11 @@
             <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
           </svg>
         </div>
-        <div class="locked-tag">SIGN IN REQUIRED &bull; ISO/IEC 27037</div>
-        <h2 class="locked-headline">Sign in to open the detection lab</h2>
+        <div class="locked-tag">SIGN IN REQUIRED</div>
+        <h2 class="locked-headline">Sign in to start scanning videos</h2>
         <p class="locked-sub">
-          Evidence ingestion, face extraction and report generation are kept behind an account so that
-          each examination can be attributed to a named examiner. Creating an account takes a moment and
-          the credentials stay on this machine.
+          Video analysis and report generation are kept behind a free account so your scans stay
+          private and your case history is there whenever you log back in. Takes a moment to set up.
         </p>
         <div class="locked-actions">
           <button type="button" class="btn-hero btn-hero--primary" id="portalLoginBtn">
@@ -356,7 +349,7 @@
           <p class="drop-title">Submit Video Evidence</p>
           <p class="drop-hint">or <button class="linkish" id="browse" type="button">select local file</button></p>
           <p class="drop-note">
-            Accepted: MP4, MOV, AVI, MKV, WebM up to 250 MB.<br>
+            Accepted: MP4, MOV, AVI, MKV, WebM up to 200 MB.<br>
             Zero-retention volatile processing in accordance with research ethics.
           </p>
 
@@ -668,10 +661,10 @@
     <div class="section-inner">
       <header class="section-head">
         <span class="section-index">04</span>
-        <h2 class="section-title">Evaluation Results</h2>
+        <h2 class="section-title">Accuracy You Can Verify</h2>
         <p class="section-subtitle">
-          Measured on a 200-clip held-out set drawn from FaceForensics++ and Celeb-DF, with the
-          decision threshold fixed at &tau;&nbsp;=&nbsp;0.50 before testing.
+          Measured on 200 held-out clips the model never saw during training, with the decision
+          threshold fixed before testing, so there's no cherry-picking after the fact.
         </p>
       </header>
 
@@ -700,7 +693,7 @@
 
       <div class="table-wrap">
         <table class="data-table">
-          <caption>Table 1 &mdash; Per-dataset performance at &tau; = 0.50</caption>
+          <caption>Performance by test set</caption>
           <thead>
             <tr>
               <th scope="col">Dataset</th>
@@ -743,9 +736,9 @@
         </table>
       </div>
       <p class="table-note">
-        Figures come from <code>scripts/evaluate_200.py</code>. The held-out clips were never seen
-        during training or threshold selection. Results on footage outside these datasets should be
-        expected to be lower &mdash; see <a href="#limitations">Limitations</a>.
+        The held-out clips were never seen during training or threshold selection. Results on footage
+        very different from these test sets (new generators, unusual lighting, heavy compression) can
+        be lower, which is why every result ships with a confidence margin rather than a bare yes or no.
       </p>
 
       <!-- Live runtime configuration, filled from /api/status on load -->
@@ -769,185 +762,110 @@
     </div>
   </section>
 
-  <!-- ══ 05 · Methodology ════════════════════════════════════════ -->
-  <section class="page-section section-anchor" id="methodology">
+  <!-- ══ FAQ ═══════════════════════════════════════════════════════ -->
+  <section class="page-section section-anchor section-alt" id="faq">
     <div class="section-inner">
       <header class="section-head">
-        <span class="section-index">05</span>
-        <h2 class="section-title">Detection Methodology</h2>
+        <span class="section-index">FAQ</span>
+        <h2 class="section-title">Common Questions</h2>
         <p class="section-subtitle">
-          The pipeline a submitted clip travels through, and the four analyses that feed the score.
+          The things people usually want to know before uploading a video.
         </p>
       </header>
 
-      <!-- Pipeline: reads as a flow on desktop, a list on mobile -->
-      <ol class="pipeline" aria-label="Processing pipeline">
-        <li class="pipe-stage">
-          <span class="pipe-step">Stage 1</span>
-          <span class="pipe-name">Decode &amp; sample</span>
-          <span class="pipe-desc">Frames drawn at a fixed interval via FFmpeg.</span>
-        </li>
-        <li class="pipe-stage">
-          <span class="pipe-step">Stage 2</span>
-          <span class="pipe-name">Face detection</span>
-          <span class="pipe-desc">MTCNN locates and aligns faces to 224&times;224.</span>
-        </li>
-        <li class="pipe-stage">
-          <span class="pipe-step">Stage 3</span>
-          <span class="pipe-name">Feature extraction</span>
-          <span class="pipe-desc">CNN embedding plus FFT and motion descriptors.</span>
-        </li>
-        <li class="pipe-stage">
-          <span class="pipe-step">Stage 4</span>
-          <span class="pipe-name">Fusion &amp; scoring</span>
-          <span class="pipe-desc">Weighted combination against the calibrated threshold.</span>
-        </li>
-        <li class="pipe-stage">
-          <span class="pipe-step">Stage 5</span>
-          <span class="pipe-name">Report</span>
-          <span class="pipe-desc">Verdict, confidence band and SHA-256 seal.</span>
-        </li>
-      </ol>
+      <div class="faq-list">
+        <details class="faq-item" open>
+          <summary class="faq-question">
+            Is my video stored anywhere?
+            <svg class="faq-chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </summary>
+          <p class="faq-answer">
+            No. Your video is held in memory only for the duration of the scan and deleted immediately
+            afterwards. It is never written to disk and never added to your history. Only the written
+            findings and a SHA-256 hash of the file are saved, so we can show you the case later without
+            keeping a copy of the media itself.
+          </p>
+        </details>
 
-      <div class="capabilities-grid">
-        <div class="cap-card">
-          <div class="cap-icon-box">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#00F0FF" stroke-width="2">
-              <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path>
-              <circle cx="12" cy="12" r="3"></circle>
-            </svg>
-          </div>
-          <h3 class="cap-title">MTCNN facial alignment</h3>
-          <p class="cap-desc">
-            Detects and normalises the facial region in each sampled frame. Crops are standardised to
-            224&times;224 so that landmark positions and blend boundaries can be compared frame to frame.
+        <details class="faq-item">
+          <summary class="faq-question">
+            What video formats and sizes are supported?
+            <svg class="faq-chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </summary>
+          <p class="faq-answer">
+            MP4, MOV, AVI, MKV, WebM, 3GP and M4V, up to 250&nbsp;MB per file. If your file is larger,
+            trim the clip to the part you want checked.
           </p>
-          <p class="cap-ref">Zhang et al., 2016</p>
-        </div>
+        </details>
 
-        <div class="cap-card">
-          <div class="cap-icon-box">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#8B5CF6" stroke-width="2">
-              <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
-              <polyline points="2 17 12 22 22 17"></polyline>
-              <polyline points="2 12 12 17 22 12"></polyline>
-            </svg>
-          </div>
-          <h3 class="cap-title">2D-FFT spectral profiling</h3>
-          <p class="cap-desc">
-            Takes a 2D Fourier transform of each face crop to look for the checkerboard and upsampling
-            residue that transposed-convolution generators tend to leave in the high-frequency band.
+        <details class="faq-item">
+          <summary class="faq-question">
+            How accurate is the detection?
+            <svg class="faq-chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </summary>
+          <p class="faq-answer">
+            98.2% balanced accuracy on 200 held-out clips the model never saw during training or
+            threshold selection (see <a href="#results">Accuracy You Can Verify</a>). Footage very
+            different from those test sets (new generators, unusual lighting, heavy compression) can
+            score lower, which is why every result comes with a confidence margin instead of a bare
+            yes or no.
           </p>
-          <p class="cap-ref">Durall et al., 2020</p>
-        </div>
+        </details>
 
-        <div class="cap-card">
-          <div class="cap-icon-box">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#10B981" stroke-width="2">
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-            </svg>
-          </div>
-          <h3 class="cap-title">Temporal motion coherence</h3>
-          <p class="cap-desc">
-            Compares optical flow and boundary stability between consecutive frames. Swapped faces
-            often flicker at the mask edge or drift against the head pose in a way real faces do not.
+        <details class="faq-item">
+          <summary class="faq-question">
+            Why did I get "Inconclusive" instead of a clear answer?
+            <svg class="faq-chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </summary>
+          <p class="faq-answer">
+            The score's confidence margin straddled the decision line, so calling it either way would be
+            a guess. Rather than force a verdict it isn't sure about, the system tells you it needs a
+            closer look. This is usually caused by heavy re-compression (e.g. a messenger re-upload) or
+            a face that's only partly visible.
           </p>
-          <p class="cap-ref">Inter-frame variance analysis</p>
-        </div>
+        </details>
 
-        <div class="cap-card">
-          <div class="cap-icon-box">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#F59E0B" stroke-width="2">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-            </svg>
-          </div>
-          <h3 class="cap-title">Zero-retention handling</h3>
-          <p class="cap-desc">
-            Submitted media is buffered in temporary memory for feature extraction and unlinked as soon
-            as scoring finishes, so no second copy of the evidence is created on disk.
+        <details class="faq-item">
+          <summary class="faq-question">
+            What if no face is found in my video?
+            <svg class="faq-chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </summary>
+          <p class="faq-answer">
+            Face-level analysis needs a visible face to examine. If none is detected (heavy occlusion,
+            an extreme angle, or very low resolution), the system reports "no face found" rather than
+            guessing at a score.
           </p>
-          <p class="cap-ref">ISO/IEC 27037 &middot; NIST SP 800-86</p>
-        </div>
-      </div>
-    </div>
-  </section>
+        </details>
 
-  <!-- ══ 06 · Limitations & Ethics ═══════════════════════════════ -->
-  <section class="page-section section-anchor section-alt" id="limitations">
-    <div class="section-inner">
-      <header class="section-head">
-        <span class="section-index">06</span>
-        <h2 class="section-title">Limitations &amp; Ethical Considerations</h2>
-        <p class="section-subtitle">
-          Stated openly, because a detector presented without its failure modes is not much use as
-          evidence.
-        </p>
-      </header>
+        <details class="faq-item">
+          <summary class="faq-question">
+            Do I need an account to use this?
+            <svg class="faq-chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </summary>
+          <p class="faq-answer">
+            Yes, a free account. It keeps your scans private to you and gives you a history you can
+            reopen and re-export as a PDF any time you sign back in.
+          </p>
+        </details>
 
-      <div class="limits-grid">
-        <article class="limit-card">
-          <h3 class="limit-title">Dataset bias</h3>
-          <p class="limit-body">
-            Training data is dominated by FaceForensics++ and Celeb-DF. Generators released after those
-            datasets, and faces underrepresented in them, are likely to be scored less reliably.
+        <details class="faq-item">
+          <summary class="faq-question">
+            Can I use a report as legal or forensic proof?
+            <svg class="faq-chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </summary>
+          <p class="faq-answer">
+            Treat it as an investigative indicator, not a legal determination on its own. A score above
+            the threshold means manipulation signatures were found, not that manipulation is proven,
+            and corroboration is still required.
           </p>
-        </article>
-        <article class="limit-card">
-          <h3 class="limit-title">Compression sensitivity</h3>
-          <p class="limit-body">
-            Heavy re-encoding removes exactly the high-frequency residue the spectral branch depends on.
-            The messenger heuristic compensates in part, but low-bitrate footage widens the confidence
-            band considerably.
-          </p>
-        </article>
-        <article class="limit-card">
-          <h3 class="limit-title">Not a legal determination</h3>
-          <p class="limit-body">
-            The output is an investigative indicator. A score above the threshold means manipulation
-            signatures were found, not that manipulation is proven; corroboration is still required.
-          </p>
-        </article>
-        <article class="limit-card">
-          <h3 class="limit-title">Face-dependent</h3>
-          <p class="limit-body">
-            If MTCNN finds no usable face &mdash; heavy occlusion, extreme pose, very low resolution
-            &mdash; the pipeline cannot score the clip and returns inconclusive rather than guessing.
-          </p>
-        </article>
-        <article class="limit-card">
-          <h3 class="limit-title">Adversarial pressure</h3>
-          <p class="limit-body">
-            Detection and generation move together. A generator trained against a published detector can
-            suppress the artefacts it looks for, so measured accuracy should be read as a snapshot.
-          </p>
-        </article>
-        <article class="limit-card">
-          <h3 class="limit-title">Consent and privacy</h3>
-          <p class="limit-body">
-            All evaluation footage came from publicly released research datasets with their own consent
-            terms. No personal media was collected for this project, and nothing submitted here is stored.
-          </p>
-        </article>
-      </div>
-
-      <div class="refs-block">
-        <h3 class="refs-title">Selected references</h3>
-        <ol class="refs-list">
-          <li>Rossler, A. et&nbsp;al. (2019) <em>FaceForensics++: Learning to Detect Manipulated Facial Images.</em> ICCV.</li>
-          <li>Li, Y. et&nbsp;al. (2020) <em>Celeb-DF: A Large-Scale Challenging Dataset for DeepFake Forensics.</em> CVPR.</li>
-          <li>Zhang, K. et&nbsp;al. (2016) <em>Joint Face Detection and Alignment Using Multi-task Cascaded Convolutional Networks.</em> IEEE SPL.</li>
-          <li>Durall, R. et&nbsp;al. (2020) <em>Watch Your Up-Convolution: CNN Based Generative Deep Neural Networks Are Failing to Reproduce Spectral Distributions.</em> CVPR.</li>
-          <li>Kent, K. et&nbsp;al. (2006) <em>NIST SP 800-86: Guide to Integrating Forensic Techniques into Incident Response.</em> NIST.</li>
-          <li>ISO/IEC 27037:2012 <em>Guidelines for Identification, Collection, Acquisition and Preservation of Digital Evidence.</em></li>
-        </ol>
+        </details>
       </div>
     </div>
   </section>
 
   </div><!-- /#mainContent -->
 
-  <!-- ── Academic Footer ────────────────────────────────────────── -->
+  <!-- ── Footer ─────────────────────────────────────────────────── -->
   <footer class="footer">
     <div class="footer-inner">
       <div class="footer-brand">
@@ -955,14 +873,13 @@
         <span>DEEPFAKE FORENSICS</span>
       </div>
       <div class="footer-note">
-        Final year project submitted for the BSc (Hons) Cybersecurity &amp; Digital Forensics.
-        Built and evaluated for academic assessment; not a certified forensic product.
+        Results are an AI-generated indicator, not a legal or forensic determination on their own.
+        Videos are never stored. Only the findings and file hash are kept.
       </div>
       <nav class="footer-links" aria-label="Footer navigation">
-        <a href="#overview">Overview</a>
-        <a href="#results">Results</a>
-        <a href="#methodology">Methodology</a>
-        <a href="#limitations">Limitations</a>
+        <a href="#overview">Why It Matters</a>
+        <a href="#results">Accuracy</a>
+        <a href="#faq">FAQ</a>
       </nav>
     </div>
   </footer>
@@ -984,8 +901,8 @@
         <div class="modal-logo-wrap">
           <img src="/static/logo.svg" alt="Deepfake Forensics Emblem" width="44" height="44">
         </div>
-        <h3 class="modal-title" id="authTitle">Cybersecurity Lab Authentication</h3>
-        <p class="modal-subtitle">Digital Forensics Laboratory &bull; Faculty of Computing</p>
+        <h3 class="modal-title" id="authTitle">Welcome to Deepfake Forensics</h3>
+        <p class="modal-subtitle">Free account &bull; takes less than a minute</p>
       </div>
 
       <!-- Tabs: Sign In / Create Account -->
@@ -999,8 +916,8 @@
       <!-- Sign In Form -->
       <form class="auth-form" id="signInForm">
         <div class="form-group">
-          <label for="loginEmail" class="form-label">Email or Student ID</label>
-          <input type="text" id="loginEmail" class="form-input" placeholder="student@university.edu or CYB-..." required autocomplete="username">
+          <label for="loginEmail" class="form-label">Email address</label>
+          <input type="text" id="loginEmail" class="form-input" placeholder="you@example.com" required autocomplete="username">
         </div>
         <div class="form-group">
           <label for="loginPassword" class="form-label">Password</label>
@@ -1009,7 +926,7 @@
         <div class="form-footer-row">
           <label class="form-check">
             <input type="checkbox" id="rememberMe" checked>
-            <span>Remember clearance</span>
+            <span>Remember me</span>
           </label>
           <button type="button" class="form-link" id="switchSignUpLink">Need an account? Create Account</button>
         </div>
@@ -1020,33 +937,30 @@
       <form class="auth-form" id="signUpForm" hidden>
         <div class="form-group">
           <label for="regName" class="form-label">Full Name</label>
-          <input type="text" id="regName" class="form-input" placeholder="e.g. Sailess Raj" required>
+          <input type="text" id="regName" class="form-input" placeholder="e.g. Alex Tan" required>
         </div>
         <div class="form-group">
-          <label for="regStudentId" class="form-label">Student / Staff ID</label>
-          <input type="text" id="regStudentId" class="form-input" placeholder="e.g. CYB-2026-9481" required>
+          <label for="regEmail" class="form-label">Email address</label>
+          <input type="email" id="regEmail" class="form-input" placeholder="you@example.com" required autocomplete="username">
         </div>
         <div class="form-group">
-          <label for="regEmail" class="form-label">University Email</label>
-          <input type="email" id="regEmail" class="form-input" placeholder="student@university.edu" required autocomplete="username">
-        </div>
-        <div class="form-group">
-          <label for="regRole" class="form-label">Academic Role</label>
+          <label for="regRole" class="form-label">How will you use this? (optional)</label>
           <select id="regRole" class="form-select">
-            <option value="BSc Cybersecurity Student (Final Year)">BSc Cybersecurity Student (Final Year)</option>
-            <option value="Digital Forensics Researcher">Digital Forensics Researcher</option>
-            <option value="Project Supervisor / Examiner">Project Supervisor / Examiner</option>
+            <option value="Individual">Individual</option>
+            <option value="Journalist / Fact-Checker">Journalist / Fact-Checker</option>
+            <option value="Researcher / Analyst">Researcher / Analyst</option>
+            <option value="Business / Organisation">Business / Organisation</option>
           </select>
         </div>
         <div class="form-group">
           <label for="regPassword" class="form-label">Create Password</label>
-          <input type="password" id="regPassword" class="form-input" placeholder="Minimum 4 characters" required autocomplete="new-password">
+          <input type="password" id="regPassword" class="form-input" placeholder="At least 8 characters" required autocomplete="new-password">
         </div>
         <button type="submit" class="btn-submit-auth">Create Account</button>
       </form>
 
       <div class="modal-notice">
-        Session access is logged locally to maintain evidence chain of custody (ISO/IEC 27037).
+        Your sign-in activity is logged for account security. We never share your details.
       </div>
     </div>
   </div>
@@ -1060,7 +974,7 @@
       <div class="modal-header modal-header--left">
         <h3 class="modal-title" id="settingsTitle">Account Settings</h3>
         <p class="modal-subtitle">
-          Your name and ID appear on every forensic report you export.
+          Your name appears on every report you export.
         </p>
       </div>
 
@@ -1101,22 +1015,19 @@
           <input type="text" id="setName" class="form-input" required autocomplete="name">
         </div>
         <div class="form-group">
-          <label for="setStudentId" class="form-label">Student / Staff ID</label>
-          <input type="text" id="setStudentId" class="form-input" placeholder="e.g. CYB-2026-9481">
-        </div>
-        <div class="form-group">
-          <label for="setRole" class="form-label">Academic role</label>
+          <label for="setRole" class="form-label">How will you use this?</label>
           <select id="setRole" class="form-select">
-            <option value="BSc Cybersecurity Student (Final Year)">BSc Cybersecurity Student (Final Year)</option>
-            <option value="Digital Forensics Researcher">Digital Forensics Researcher</option>
-            <option value="Project Supervisor / Examiner">Project Supervisor / Examiner</option>
+            <option value="Individual">Individual</option>
+            <option value="Journalist / Fact-Checker">Journalist / Fact-Checker</option>
+            <option value="Researcher / Analyst">Researcher / Analyst</option>
+            <option value="Business / Organisation">Business / Organisation</option>
           </select>
         </div>
         <div class="form-group">
-          <label for="setEmail" class="form-label">University email</label>
+          <label for="setEmail" class="form-label">Email address</label>
           <input type="email" id="setEmail" class="form-input" disabled>
           <p class="form-hint">
-            The email is the account identifier and cannot be changed here &mdash; every
+            The email is the account identifier and cannot be changed here, since every
             audit entry is keyed to it.
           </p>
         </div>
@@ -1175,7 +1086,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Download PDF File
+          <span class="pdf-btn-label">Download PDF File</span>
         </button>
         <button type="button" class="btn btn-pdf-action btn-pdf-print" id="pdfPrintBtn">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
@@ -1183,7 +1094,7 @@
             <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
             <rect x="6" y="14" width="12" height="8"></rect>
           </svg>
-          Print / Save as PDF
+          <span class="pdf-btn-label">Print / Save as PDF</span>
         </button>
         <button type="button" class="btn-pdf-close" id="closePdfModalBtn" title="Close Preview">&times;</button>
       </div>

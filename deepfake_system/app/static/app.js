@@ -23,7 +23,7 @@ const el = {
   signInForm: $('signInForm'), signUpForm: $('signUpForm'),
   authAlert: $('authAlert'), switchSignUpLink: $('switchSignUpLink'),
   loginEmail: $('loginEmail'), loginPassword: $('loginPassword'),
-  regName: $('regName'), regStudentId: $('regStudentId'), regEmail: $('regEmail'), regRole: $('regRole'), regPassword: $('regPassword'),
+  regName: $('regName'), regEmail: $('regEmail'), regRole: $('regRole'), regPassword: $('regPassword'),
   lockSignInBtn: $('lockSignInBtn'), bannerSignInBtn: $('bannerSignInBtn'), authGateBanner: $('authGateBanner'),
   portalLoginBtn: $('portalLoginBtn'), portalSignUpBtn: $('portalSignUpBtn'),
   loggedOutPortal: $('loggedOutPortal'), navHome: $('navHome'), navLab: $('navLab'),
@@ -199,7 +199,7 @@ function updateAccessState() {
       el.ingestBadge.style.color = 'var(--real)';
       el.ingestBadge.style.borderColor = 'rgba(16, 185, 129, 0.4)';
     }
-    if (el.heroLaunchBtnText) el.heroLaunchBtnText.textContent = 'Enter Forensic Lab';
+    if (el.heroLaunchBtnText) el.heroLaunchBtnText.textContent = 'Go to Detection Lab';
 
     // Render Student ID badge in header. Name, role and student ID are
     // whatever the account holder typed at sign-up, so they are escaped
@@ -212,7 +212,7 @@ function updateAccessState() {
         <div class="user-avatar" title="${role}">${initials}</div>
         <div class="user-info">
           <span class="user-name">${esc(user.name || '')}</span>
-          <span class="user-role">${esc(user.studentId || (user.role || '').split(' ')[0] || '')}</span>
+          <span class="user-role">${esc((user.role || '').split(' ')[0] || '')}</span>
         </div>
         <div class="user-actions">
           <button class="user-action" id="openSettingsBtn" type="button"
@@ -248,7 +248,7 @@ function updateAccessState() {
       el.ingestBadge.style.color = 'var(--maybe)';
       el.ingestBadge.style.borderColor = 'rgba(245, 158, 11, 0.4)';
     }
-    if (el.heroLaunchBtnText) el.heroLaunchBtnText.textContent = 'Sign In to Detect';
+    if (el.heroLaunchBtnText) el.heroLaunchBtnText.textContent = 'Scan a Video Now';
 
     el.authBox.innerHTML = `
       <button class="btn-auth" id="openAuthBtn" type="button">
@@ -361,7 +361,6 @@ async function initAuth() {
     e.preventDefault();
     clearAuthAlert();
     const name = el.regName.value.trim();
-    const studentId = el.regStudentId.value.trim();
     const email = el.regEmail.value.trim().toLowerCase();
     const role = el.regRole.value;
     const password = el.regPassword.value;
@@ -376,7 +375,7 @@ async function initAuth() {
     try {
       const data = await api('/api/auth/register', {
         method: 'POST',
-        body: JSON.stringify({ email, password, name, studentId, role })
+        body: JSON.stringify({ email, password, name, role })
       });
       loginUser(data.user);
     } catch (err) {
@@ -800,6 +799,18 @@ function drawStrip(d) {
   el.stripSub.textContent =
     `${d.frames.length} sampled face crops across ${d.total_frames || '?'} frames at ${d.fps || '?'} fps. Color denotes manipulation score.`;
 
+  // IR 3.4.1 UI/UX: state in words where the model looked, so the cue is
+  // readable without technical knowledge. The caveat is included on
+  // purpose — a heatmap invites over-reading, and an analyst who thinks
+  // it segments "the fake part" will draw conclusions it cannot support.
+  const xai = d.explanation;
+  if (xai && xai.detail && xai.detail.length) {
+    const top = xai.detail[0];
+    el.stripSub.textContent +=
+      ` ${xai.frames_explained} frame${xai.frames_explained > 1 ? 's' : ''} carry a ` +
+      `${xai.method} overlay (marked XAI; click a crop to toggle). ${top.text} ${xai.caveat}`;
+  }
+
   for (const f of d.frames) {
     const cell = document.createElement('figure');
     cell.className = 'cell';
@@ -812,6 +823,27 @@ function drawStrip(d) {
       img.alt = 'Facial Crop';
       img.loading = 'lazy';
       cell.appendChild(img);
+
+      // IR 3.4.1 UI/UX: explainable visual cues. Only the few frames the
+      // model found most suspicious carry a Grad-CAM overlay. Click to
+      // swap between the crop and the heatmap, so the cue is available
+      // without obscuring the evidence by default.
+      if (f.cam) {
+        cell.classList.add('cell--explained');
+        cell.title = `${cell.title}\n${f.cam_text || ''}\nClick to show where the model looked.`;
+        let showingCam = false;
+        const badge = document.createElement('span');
+        badge.className = 'cell-xai';
+        badge.textContent = 'XAI';
+        cell.appendChild(badge);
+        cell.style.cursor = 'pointer';
+        cell.addEventListener('click', () => {
+          showingCam = !showingCam;
+          img.src = showingCam ? f.cam : f.thumb;
+          badge.textContent = showingCam ? 'CROP' : 'XAI';
+          badge.classList.toggle('is-on', showingCam);
+        });
+      }
     }
     const bar = document.createElement('div');
     bar.className = 'cell-bar';
@@ -1043,14 +1075,14 @@ function drawSpecs(d) {
   const m = d.media || {};
   const p = d.provenance || {};
   const currentUser = getCurrentUser();
-  const examinerStamp = currentUser ? `${currentUser.name} (${currentUser.studentId || 'CYB-2026-9481'})` : 'Sailess Raj (CYB-2026-9481)';
+  const examinerStamp = currentUser ? currentUser.name : 'Guest';
   const verdictText = d.label === 'manipulated' ? 'FAKE VIDEO' : (d.label === 'authentic' ? 'NOT FAKE (REAL)' : 'INCONCLUSIVE');
   const fakeScoreDisplay = d.probability !== null ? `${Math.round(d.probability * 100)}%` : '—';
 
   const rows = [
     ['Verdict', verdictText],
     ['Manipulation Score', fakeScoreDisplay],
-    ['Examiner on Record', examinerStamp],
+    ['Prepared By', examinerStamp],
     ['Evidence SHA-256 Hash', d.evidence_sha256 || '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08', 'hash-val'],
     ['Container Resolution', m.width && m.height ? `${m.width} × ${m.height}` : 'unknown'],
     ['Video Codec', m.codec ? `${m.codec}${m.profile ? ' / ' + m.profile : ''}` : 'unknown'],
@@ -1169,11 +1201,28 @@ function remember(d) {
 }
 
 /* ── Persisted Case History (DynamoDB) ───────────────────────────
-   The in-RAM log above holds this session's full results, thumbnails
-   included. This list is what actually survives: the stored record keeps
-   the finding, the evidence hash and the model version, and deliberately
-   keeps no media (IR 3.4.1). So these rows are read-only summaries — the
-   interactive report cannot be rebuilt from them, by design. */
+   The in-RAM log above holds this session's full results, face-crop and
+   Grad-CAM thumbnails included. This list is what actually survives a
+   logout: the stored record keeps the finding, the evidence hash, the
+   notes and the model version, but deliberately no media (IR 3.4.1) — no
+   face crops, no heatmaps. hydrateStoredRecord() reshapes one of these
+   rows into the same shape render()/renderPdfSheet() expect, so a past
+   case can still be reopened and re-exported as a PDF after signing back
+   in — just without the image evidence, which was never kept. */
+function hydrateStoredRecord(r) {
+  return {
+    ...r,
+    frames: r.frames || [],
+    features: r.features || {},
+    faces_found: r.faces_found ?? 0,
+    elapsed: r.elapsed ?? '—',
+    audio: {
+      available: !!r.audio_available,
+      lipsync: r.lipsync || {},
+      voice: r.voice || {},
+    },
+  };
+}
 async function loadRecent() {
   if (!el.storedWrap) return;
   if (!isLoggedIn()) {
@@ -1192,7 +1241,7 @@ async function loadRecent() {
   el.storedWrap.hidden = rows.length === 0;
   if (el.storedCount) el.storedCount.textContent = rows.length;
   if (el.storedFoot) {
-    el.storedFoot.textContent = 'ISO/IEC 27037 zero-retention local forensic records. Evidence media is never stored.';
+    el.storedFoot.textContent = 'Saved to your account. Click a case to reopen it, or export its PDF again. Face crops and heatmaps are never stored, so only the written findings return.';
   }
 
   el.storedList.innerHTML = '';
@@ -1222,18 +1271,33 @@ async function loadRecent() {
       ? '—' : `${Math.round(r.probability * 100)}%`;
 
     b.append(dot, name, score);
-    // Clicking re-opens the full report only when this session still
-    // holds it in memory; otherwise the hash is the useful artefact.
+    // Prefer this session's in-memory copy (it still has face crops and
+    // heatmaps); otherwise rebuild the report from the stored record.
     b.addEventListener('click', () => {
       const live = session.find((s) => s.report_id === r.report_id);
-      if (live) { render(live); return; }
-      if (r.evidence_sha256 && navigator.clipboard) {
-        navigator.clipboard.writeText(r.evidence_sha256).catch(() => {});
-      }
-      name.title = 'SHA-256 copied. The full report is not retained.';
+      render(live || hydrateStoredRecord(r));
     });
 
-    li.append(b);
+    const pdfBtn = document.createElement('button');
+    pdfBtn.type = 'button';
+    pdfBtn.className = 'recent-pdf-btn';
+    pdfBtn.title = `Export PDF report for ${r.filename || 'this case'}`;
+    pdfBtn.innerHTML = `
+      <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
+        <line x1="12" y1="18" x2="12" y2="12"></line>
+        <polyline points="9 15 12 18 15 15"></polyline>
+      </svg>
+      <span>PDF</span>
+    `;
+    pdfBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const live = session.find((s) => s.report_id === r.report_id);
+      openPdfReportForItem(live || hydrateStoredRecord(r));
+    });
+
+    li.append(b, pdfBtn);
     el.storedList.appendChild(li);
   });
 }
@@ -1268,13 +1332,15 @@ el.copy?.addEventListener('click', async () => {
   if (!current) return;
   const currentUser = getCurrentUser();
   const dossier = {
-    project: 'BSc Cybersecurity Final Year Project — Deepfake Forensics',
-    examiner: currentUser ? `${currentUser.name} (${currentUser.studentId || 'CYB-2026-9481'})` : 'Sailess Raj (CYB-2026-9481)',
+    project: 'BSc Cybersecurity Final Year Project: Deepfake Forensics',
+    examiner: currentUser ? currentUser.name : 'Guest',
     verdict: current.label === 'manipulated' ? 'FAKE' : (current.label === 'authentic' ? 'NOT FAKE' : 'INCONCLUSIVE'),
     fake_score_pct: current.probability !== null ? `${(current.probability * 100).toFixed(1)}%` : null,
     evidence_sha256: current.evidence_sha256,
     ...current,
-    frames: (current.frames || []).map(({ thumb, ...r }) => r)
+    // Drop the image payloads: thumb and cam are both base64 JPEGs and
+    // would turn a readable dossier into hundreds of KB of noise.
+    frames: (current.frames || []).map(({ thumb, cam, ...r }) => r)
   };
   try {
     await navigator.clipboard.writeText(JSON.stringify(dossier, null, 2));
@@ -1314,11 +1380,10 @@ function closePdfModal() {
 
 function renderPdfSheet(d) {
   const user = getCurrentUser() || {
-    name: 'Sailess Raj',
-    studentId: 'CYB-2026-9481',
-    role: 'BSc Cybersecurity Student (Final Year)'
+    name: 'Guest',
+    role: 'Individual'
   };
-  const examinerStamp = `${user.name} (${user.studentId || 'CYB-2026-9481'})`;
+  const examinerStamp = user.name;
   const isFake = d.label === 'manipulated';
   const isReal = d.label === 'authentic';
   const verdictLabel = isFake ? 'FAKE' : (isReal ? 'NOT FAKE (AUTHENTIC)' : 'INCONCLUSIVE');
@@ -1392,10 +1457,10 @@ function renderPdfSheet(d) {
             <td class="pdf-td-val pdf-hash" colspan="3">${d.evidence_sha256 || '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08'}</td>
           </tr>
           <tr>
-            <td class="pdf-td-label">Examiner on Record:</td>
+            <td class="pdf-td-label">Prepared By:</td>
             <td class="pdf-td-val">${examinerStamp}</td>
-            <td class="pdf-td-label">Academic Role:</td>
-            <td class="pdf-td-val">${user.role}</td>
+            <td class="pdf-td-label">Account Type:</td>
+            <td class="pdf-td-val">${user.role || 'Individual'}</td>
           </tr>
           <tr>
             <td class="pdf-td-label">Container Resolution:</td>
@@ -1479,7 +1544,7 @@ function renderPdfSheet(d) {
           <div class="pdf-sig-item">
             <div class="pdf-sig-line"></div>
             <div class="pdf-sig-name"><b>${user.name}</b></div>
-            <div class="pdf-sig-role">Student Investigator &bull; ${user.studentId || 'CYB-2026-9481'}</div>
+            <div class="pdf-sig-role">Account Holder &bull; ${user.role || 'Individual'}</div>
           </div>
           <div class="pdf-sig-item">
             <div class="pdf-sig-line"></div>
@@ -1630,8 +1695,7 @@ loadStatus();
     ['loggedOutPortal', 'navLab'],
     ['workspace', 'navLab'],
     ['results', 'navTelemetry'],
-    ['methodology', 'navMethodology'],
-    ['limitations', 'navLimits'],
+    ['faq', 'navFaq'],
   ];
 
   const spyTargets = SPY_MAP
@@ -1730,7 +1794,7 @@ const settingsEl = {
   avatar: $('settingsAvatar'), name: $('settingsName'), email: $('settingsEmail'),
   created: $('settingsCreated'), lastLogin: $('settingsLastLogin'),
   loginCount: $('settingsLoginCount'),
-  setName: $('setName'), setStudentId: $('setStudentId'),
+  setName: $('setName'),
   setRole: $('setRole'), setEmail: $('setEmail'),
   currentPw: $('setCurrentPw'), newPw: $('setNewPw'), confirmPw: $('setConfirmPw'),
   saveProfileBtn: $('saveProfileBtn'), savePasswordBtn: $('savePasswordBtn'),
@@ -1785,7 +1849,6 @@ function fillSettings(user) {
   if (settingsEl.loginCount) settingsEl.loginCount.textContent = String(user.login_count ?? 0);
 
   if (settingsEl.setName) settingsEl.setName.value = user.name || '';
-  if (settingsEl.setStudentId) settingsEl.setStudentId.value = user.studentId || '';
   if (settingsEl.setEmail) settingsEl.setEmail.value = user.email || '';
   if (settingsEl.setRole && user.role) {
     // Only select a role the dropdown actually offers, so an unknown
@@ -1845,7 +1908,6 @@ settingsEl.profileForm?.addEventListener('submit', async (e) => {
       method: 'PATCH',
       body: JSON.stringify({
         name: settingsEl.setName?.value || '',
-        studentId: settingsEl.setStudentId?.value || '',
         role: settingsEl.setRole?.value || '',
       }),
     });

@@ -27,14 +27,16 @@ from pydantic import BaseModel
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from config import AUTH, STORE  # noqa: E402
+from config import AUTH, INFER, STORE  # noqa: E402
 from app import audit as audit_mod  # noqa: E402
+from app import security as security_mod  # noqa: E402
 from app.auth import AuthError, AuthStore, public_user  # noqa: E402
 from app.engine import Engine  # noqa: E402
 from app.store import ReportStore, build_record  # noqa: E402
 
 STATIC = Path(__file__).parent / "static"
-MAX_BYTES = 250 * 1024 * 1024
+# DFD_MAX_UPLOAD_MB in the repo's `env` file (200 there, not 250).
+MAX_BYTES = AUTH.max_upload_mb * 1024 * 1024
 ALLOWED = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".3gp", ".m4v"}
 
 router = APIRouter()
@@ -152,6 +154,8 @@ def status(request: Request):
         out["store"] = store_st
         out["auth"] = auth_st
         out["audit"] = audit_st
+        out["transport"] = security_mod.status()
+        out["transport"]["secure"] = security_mod.is_secure(request)
         out["persistence"]["ephemeral_tables"] = [
             t.get("table") for t in tables if not t.get("durable")]
     else:
@@ -328,6 +332,75 @@ def reports(request: Request, limit: int = Query(25, ge=1, le=100)):
             "scope": "all"}
 
 
+# ------------------------------------------------- model administration
+def require_admin(request: Request) -> dict:
+    """Admin gate for anything that changes how detection behaves.
+
+    The detection model is what the entire forensic claim rests on. If any
+    account could swap it, no report from this system would be
+    falsifiable — you could never say which weights produced a verdict and
+    who chose them. `is_admin` is set on the user record in `dfd_users`.
+    """
+    user = require_user(request)
+    if not user.get("is_admin"):
+        raise HTTPException(403, "Administrator access is required to "
+                                 "change the detection model.")
+    return user
+
+
+class ActivateRequest(BaseModel):
+    checkpoint: str
+
+
+@router.get("/models")
+def list_models(user: dict = Depends(require_admin)):
+    """Checkpoints available to activate — IR 3.4.1 non-functional 4."""
+    from app import modelreg
+    engine = get_engine()
+    return {"active": engine.model_version, "mode": engine.mode,
+            "models": modelreg.discover()}
+
+
+@router.post("/models/validate")
+def validate_model(body: ActivateRequest, user: dict = Depends(require_admin)):
+    """Dry run: does this checkpoint load and score, without going live."""
+    from pathlib import Path as _P
+
+    from app import modelreg
+    root = _P(INFER.checkpoint).resolve().parent.parent
+    path = (root / body.checkpoint).resolve()
+    try:
+        path.relative_to(root.resolve())
+    except ValueError:
+        raise HTTPException(400, "That checkpoint is outside runs/.")
+    return modelreg.validate(path)
+
+
+@router.post("/models/activate")
+def activate_model(body: ActivateRequest, request: Request,
+                   user: dict = Depends(require_admin)):
+    """Validate a checkpoint and swap it in without restarting."""
+    from app import modelreg
+    engine = get_engine()
+    result = modelreg.activate(engine, body.checkpoint)
+
+    get_audit().write(
+        audit_mod.MODEL_ACTIVATED if result.get("ok")
+        else audit_mod.MODEL_REJECTED,
+        user.get("user_id", ""), user.get("email", ""), client_ip(request),
+        {"checkpoint": body.checkpoint,
+         "ok": bool(result.get("ok")),
+         "reason": result.get("reason"),
+         "previous": result.get("previous"),
+         "active": result.get("active")})
+
+    if not result.get("ok"):
+        # 422, not 500: the request was understood and the candidate was
+        # refused on its merits. The running model is untouched.
+        raise HTTPException(422, str(result.get("reason", "rejected")))
+    return result
+
+
 @router.get("/audit")
 def audit_feed(limit: int = Query(50, ge=1, le=200),
                user: dict = Depends(require_user)):
@@ -498,7 +571,8 @@ async def analyse(request: Request, video: UploadFile = File(...),
             size += len(chunk)
             sha256.update(chunk)
             if size > MAX_BYTES:
-                raise HTTPException(413, "That file is over 250 MB. Trim the "
+                raise HTTPException(413, f"That file is over "
+                                         f"{AUTH.max_upload_mb} MB. Trim the "
                                          "clip and try again.")
             tmp.write(chunk)
         tmp.close()
@@ -559,7 +633,9 @@ app = FastAPI(title="Deepfake Forensics", description="BSc Cybersecurity Capston
 # broken session cookies the moment this shipped. The interface is served
 # from the same origin as the API and needs no CORS at all; the list below
 # exists for the browser extension and for any origin you name explicitly.
-_ORIGINS = [o.strip() for o in os.getenv("DF_ALLOWED_ORIGINS", "").split(",")
+_ORIGINS = [o.strip() for o in
+            os.getenv("DFD_ALLOWED_ORIGINS",
+                      os.getenv("DF_ALLOWED_ORIGINS", "")).split(",")
             if o.strip()]
 app.add_middleware(
     CORSMiddleware,
@@ -569,17 +645,42 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
+# Added last, so it runs first and its headers are on every response —
+# including the ones CORS or an error handler produces. IR 3.4.1 security.
+app.add_middleware(security_mod.SecurityHeadersMiddleware)
 app.include_router(router, prefix="/api")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
 @app.on_event("startup")
 def on_startup():
+    # Before the engine looks for a checkpoint, not after: on a git-based
+    # deploy `runs/` is empty, and an engine that starts without weights
+    # silently serves the classical baseline for the life of the process.
+    from app.modelfetch import ensure_calibration, ensure_checkpoint
+    fetch = ensure_checkpoint()
+    ensure_calibration()
+
     eng = get_engine()
     print(f"[DEFAULT ENGINE] Neural Deepfake Model Loaded: {eng.model_version} | Mode: {eng.mode} | Backbone: {eng.backbone}")
+
+    if eng.mode != "model":
+        print("[model] " + "!" * 62)
+        print(f"[model] DEGRADED: running the classical baseline, not the "
+              f"trained model.\n[model] Reason: {fetch.get('reason')}\n"
+              "[model] Results will NOT match the accuracy reported in the "
+              "report.")
+        print("[model] " + "!" * 62)
+
     get_store()
     get_auth()
     get_audit()
+
+    store = get_store()
+    if store and not store.durable:
+        print("[store] WARNING: DynamoDB is not connected. Findings are "
+              "going to a local file, which does NOT survive a redeploy. "
+              f"Reason: {store.error or 'see /api/status'}")
 
 
 @app.get("/")

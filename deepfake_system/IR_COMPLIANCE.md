@@ -93,7 +93,7 @@ from whether the face was edited.
 | High forensic accuracy, low false positives (82.1% of users) | Partly | three-state output; the real number needs training |
 | **Speed / near real-time (66.1%)** | **FIXED** | per-stage `timings` in every response |
 | **Scalability and load capacity** | **FIXED** | see below — this was a real bug |
-| Ongoing algorithmic adaptation | Met | swap `best.pt`, restart; `model_version` recorded per report |
+| **Ongoing algorithmic adaptation** | **FIXED** | `app/modelreg.py` — validated hot-swap, no restart |
 
 ### The scalability bug
 
@@ -120,8 +120,44 @@ exactly the kind of thing a testing chapter is for.
 |---|---|---|
 | **Browser extension or mobile format (76.8%)** | **FIXED** | `extension/` — Manifest V3 |
 | **Works on Instagram, Facebook, TikTok, X** | **FIXED** | context menu on any `<video>` element |
-| Simple explainable output with visual cues (XAI) | Met | frame strip, margin gauge, signals panel |
+| **Simple explainable output with visual cues (XAI)** | **FIXED** | `app/explain.py` — Grad-CAM |
 | "A definite Real or Fake tag" | **Deliberate deviation** | see below |
+
+### Explainable AI
+
+This row previously read "Met — frame strip, margin gauge, signals
+panel". That was an overstatement, and worth being honest about: those
+show *how confident* the model is and *when* across the clip, but the IR
+asks for a cue that explains **why** — "pointing to a particular artifact
+on the face". Nothing in the system did that. It was also the single
+most-requested feature in the survey, a top priority for more than half of
+the 56 respondents.
+
+`app/explain.py` implements **Grad-CAM** (Selvaraju et al., 2017): the
+gradient of the model's own frame logit with respect to the last
+convolutional feature map, channel-weighted and rectified into a heatmap
+over the face crop. Three points to have ready:
+
+- **It explains this model, not deepfakes in general.** The map shows
+  where the network looked. If it lands on the background, that is
+  evidence the score is being driven by something other than the face —
+  which is information the analyst needs, not a bug to hide.
+- **It is not a segmentation of the manipulated region.** The response
+  ships with that caveat attached, because a heatmap invites over-reading.
+- **Only the three most suspicious frames are explained.** Each costs a
+  forward and a backward pass, and this trades directly against the
+  "near real-time" non-functional requirement. Measured at **2.4 s** on
+  CPU for three frames — after an optimisation: the per-frame logit
+  depends only on that frame's features, so the explanation pass runs on
+  a single frame rather than pushing the whole clip through the backbone.
+  The naive version cost 5.5 s for identical output.
+
+In the interface, an explained crop is marked `XAI` and clicking it
+toggles between the crop and the heatmap. The plain-English summary
+("the strongest response is in the mid-face") is written into the strip
+caption, so the cue is readable without technical knowledge — which is
+what the requirement actually asks for. The narrative is stored in
+`dfd_analyses`; the heatmap images never are.
 
 ### The extension
 
@@ -170,7 +206,7 @@ response, so nothing is hidden.
 | Requirement | Status | Where |
 |---|---|---|
 | Zero-retention: files not stored, retained, or used for training | Met | temp file deleted in a `finally` block; `PrivateTmp=true` |
-| **Encrypted transport between UI and backend** | **FIXED** | `deploy/nginx.conf` — TLS 1.2/1.3, HSTS, CSP |
+| **Encrypted transport between UI and backend** | **FIXED** | `deploy/nginx.conf` + `app/security.py` — see the Secure processing section |
 
 Findings **are** stored — the verdict, the SHA-256 of the evidence, and
 the model version. Never the video, never the thumbnails. A forensic tool
@@ -209,12 +245,29 @@ Section 2.4.4 says DynamoDB stores "detection results, **user metadata,
 and system logs**". Only the first was implemented; the other two are now
 present, which is also what made login/logout possible.
 
+Live in account `454229054677`, region `ap-southeast-5`. Four of the five
+already existed and hold real records, so the code was written to match
+their schemas rather than the reverse — see `app/tables.py`.
+
 | Table | Key | Clause of 2.4.4 |
 |---|---|---|
-| `deepfake_reports` | `report_id` + `created_at`, GSI `user-index` | detection results (Table 16) |
-| `deepfake_users` | `user_id` | user metadata |
-| `deepfake_sessions` | `session_id`, TTL on `expires_at` | login/logout state |
-| `deepfake_audit` | `audit_day` + `event_ts`, GSI `user-index` | system logs |
+| `dfd_analyses` | `user_id` + `analysis_id` | detection results (Table 16) |
+| `dfd_users` | `user_id`, GSI `EmailIndex` | user metadata |
+| `dfd_sessions` | `token_hash`, GSI `UserSessionsIndex`, TTL `expires_at` | login/logout state |
+| `dfd_login_attempts` | `identifier` + `attempted_at`, TTL `ttl` | lockout |
+| `dfd_audit_log` | `audit_day` + `event_ts`, GSI `UserAuditIndex`, TTL `expires_at` | system logs |
+
+Two schema decisions were forced by the existing rows and are worth
+stating rather than defending as preferences:
+
+- **`user_id` is a random UUIDv4, looked up by the `EmailIndex` GSI.**
+  Deriving it from the email would have made uniqueness atomic, but it
+  would also have orphaned all 35 existing accounts. The consequence is
+  that email uniqueness is a read-then-write check and therefore racy;
+  DynamoDB offers no atomic uniqueness on a non-key attribute.
+- **Failed logins live in their own table**, not as a counter on the user
+  row, so an attempt against an address with no account is still recorded
+  and the TTL expires the lockout without a `locked_until` comparison.
 
 **Table 16 deviations, stated deliberately.** The IR lists ten attributes;
 the implementation stores eight of them and adds several more.
@@ -235,6 +288,78 @@ the implementation stores eight of them and adds several more.
 Either amend Table 16 in the report or be ready to explain the three
 omissions. All three follow from requirements stated elsewhere in the IR,
 so the deviation is defensible — but only if you raise it first.
+
+---
+
+## Chapter 3.4.1 — Ongoing algorithmic adaptation (non-functional 4)
+
+"The system architecture should enable the ongoing updating of its machine
+learning models." Previously this meant overwriting `runs/v1/best.pt` and
+restarting: the service went down, a bad checkpoint was only discovered
+once it was already serving, and nothing recorded that the model changed.
+
+`app/modelreg.py` plus three admin-only endpoints:
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/models` | every checkpoint under `runs/`, with its training metrics |
+| `POST /api/models/validate` | dry run — loads and scores without going live |
+| `POST /api/models/activate` | validates, then swaps in without a restart |
+
+Four properties worth defending:
+
+- **Validated before activation.** A candidate is built as a *separate*
+  model and made to score a probe clip. Truncated files, architecture
+  mismatches and checkpoints that emit NaN are all rejected while the
+  running model keeps serving. A NaN-producing checkpoint passes every
+  structural check and then poisons every verdict, which is exactly why
+  the smoke test exists.
+- **Atomic.** The swap happens under a lock, so an analysis already in
+  flight finishes on the model it started with.
+- **Admin-only.** The detection model is what the whole forensic claim
+  rests on. If any account could change it, no report would be
+  falsifiable — you could never say which weights produced a verdict or
+  who chose them. Gated on `is_admin` in `dfd_users`.
+- **Audited.** `model.activated` and `model.rejected` both go to
+  `dfd_audit_log`, and `model_version` is already on every stored
+  analysis, so any past verdict traces to the weights behind it.
+
+Checkpoint ids are path-checked against `runs/`, so `../../etc/passwd`
+is refused rather than resolved. Listing uses `weights_only=True` — a
+`.pt` file is a pickle, and enumerating models must not be a way to
+execute code.
+
+---
+
+## Chapter 3.4.1 — Secure processing (security requirement 2)
+
+"The data sent between the user interface and the backend processing
+server should be heavily encrypted to avoid interception or
+manipulation." Everything was plain HTTP, and the nginx config that once
+handled TLS had been removed from the repo. This was genuinely unmet.
+
+| Layer | Where |
+|---|---|
+| TLS 1.2/1.3 termination, HSTS, OCSP stapling | `deploy/nginx.conf` |
+| Security headers, CSP, https redirect | `app/security.py` |
+| Hardened systemd unit | `deploy/deepfake.service` |
+| Local HTTPS for testing and demos | `scripts/dev_tls.py` |
+
+**The CSP is the part worth pointing at.** The interface has no inline
+`<script>` blocks at all, so `script-src` is `'self'` with no
+`unsafe-inline` and no `unsafe-eval`: an injected `<script>` tag does not
+execute. That is the control that would have *contained* the stored-XSS
+hole found in the account badge, rather than relying on output escaping
+alone — defence in depth, with both layers now present.
+
+`style-src` does carry `'unsafe-inline'`, because the page and the report
+sheet use a handful of `style=""` attributes. Stated rather than hidden;
+removing it is a small refactor if an examiner presses.
+
+Verified locally over real TLS (`python scripts/dev_tls.py`): TLS 1.3,
+`TLS_AES_256_GCM_SHA384`, HSTS present over https and correctly absent
+over http, and `Cache-Control: no-store` on every `/api/` response so an
+evidence report is never held in a shared cache.
 
 ---
 

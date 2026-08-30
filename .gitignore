@@ -51,3 +51,8 @@ messenger_eval/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# ---- Tool caches (regenerated; never worth committing) ----
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/

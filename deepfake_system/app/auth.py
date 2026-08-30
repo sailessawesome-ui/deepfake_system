@@ -38,19 +38,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from config import AUTH, STORE  # noqa: E402
-from app.local_table import Table  # noqa: E402
-
-# Namespace for deterministic user ids. Fixed forever — changing it
-# orphans every existing account.
-_NS = uuid.UUID("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
+from config import AUTH  # noqa: E402
+from app import tables  # noqa: E402
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[a-zA-Z]{2,}$")
 
 ROLES = (
-    "BSc Cybersecurity Student (Final Year)",
-    "Digital Forensics Researcher",
-    "Project Supervisor / Examiner",
+    "Individual",
+    "Journalist / Fact-Checker",
+    "Researcher / Analyst",
+    "Business / Organisation",
 )
 
 
@@ -62,8 +59,16 @@ def _iso(dt: datetime) -> str:
     return dt.isoformat()
 
 
-def user_id_for(email: str) -> str:
-    return str(uuid.uuid5(_NS, "mailto:" + email.strip().lower()))
+def new_user_id() -> str:
+    """Random UUIDv4.
+
+    An earlier draft derived the id from the email so that uniqueness came
+    free from a conditional put. The 35 accounts already in `dfd_users`
+    use random v4 ids and the table carries an `EmailIndex` GSI for
+    lookup, so that scheme would have orphaned every one of them. The
+    data wins.
+    """
+    return str(uuid.uuid4())
 
 
 # --------------------------------------------------------------- hashing
@@ -105,12 +110,11 @@ class AuthError(Exception):
 
 
 class AuthStore:
-    def __init__(self, prefer_dynamo: bool = False):
-        d = STORE.local_dir
-        self.users = Table("deepfake_users", ("user_id", None), None,
-                           d / "users.json", False)
-        self.sessions = Table("deepfake_sessions", ("session_id", None), None,
-                              d / "sessions.json", False)
+    def __init__(self, prefer_dynamo: bool = True):
+        force_local = not prefer_dynamo
+        self.users = tables.get("users", force_local)
+        self.sessions = tables.get("sessions", force_local)
+        self.attempts = tables.get("login_attempts", force_local)
 
     # ------------------------------------------------------- registration
     def _check_domain(self, email: str) -> None:
@@ -136,11 +140,21 @@ class AuthStore:
             raise AuthError("A name is required.")
         self._check_domain(email)
 
+        if self.get_by_email(email) is not None:
+            raise AuthError("An account with that email already exists.")
+
         now = _iso(_now())
+        uid = new_user_id()
         record = {
-            "user_id": user_id_for(email),
+            "user_id": uid,
+            # `id` mirrors `user_id` in every existing row. Kept so that
+            # anything written against the older shape still reads.
+            "id": uid,
             "email": email,
             "name": name,
+            # Existing rows carry `display_name`, not `name`. Both are
+            # written so old and new readers agree.
+            "display_name": name,
             "student_id": (student_id or "").strip().upper(),
             "role": role if role in ROLES else ROLES[0],
             "initials": _initials(name),
@@ -149,14 +163,21 @@ class AuthStore:
             "updated_at": now,
             "last_login_at": None,
             "login_count": 0,
-            "failed_attempts": 0,
-            "locked_until": None,
+            "is_admin": 0,
             "account_status": "active",
         }
+        # user_id is random, so this condition guards an id collision, not
+        # the email. Email uniqueness is the GSI check above, which is a
+        # read-then-write and therefore racy: two sign-ups for the same
+        # address in the same instant could both pass. DynamoDB offers no
+        # atomic uniqueness on a non-key attribute, and the table's key
+        # schema is fixed by the 35 rows already in it. Worth stating
+        # rather than hiding; the practical fix is a transactional write
+        # against a separate email-claim table.
         if not self.users.put(record, unique=True):
             if self.users.error:
                 raise AuthError("The account store is unavailable right now.")
-            raise AuthError("An account with that email already exists.")
+            raise AuthError("Could not create that account. Try again.")
         return public_user(record)
 
     # ------------------------------------------------------------ profile
@@ -183,6 +204,7 @@ class AuthStore:
             raise AuthError("That student or staff ID is too long.")
 
         user["name"] = name
+        user["display_name"] = name          # keep both spellings in step
         user["student_id"] = student_id
         # An unrecognised role keeps the current one rather than silently
         # demoting the account to the default.
@@ -219,7 +241,23 @@ class AuthStore:
         return self.users.get({"user_id": user_id})
 
     def get_by_email(self, email: str) -> dict | None:
-        return self.get_user(user_id_for(email))
+        """Look up by the EmailIndex GSI.
+
+        This is why the index exists: user_id is random, so email is not
+        derivable from it and a Scan would be the only alternative.
+        """
+        email = (email or "").strip().lower()
+        if not email:
+            return None
+        rows = self.users.query_index(tables.EMAIL_INDEX, "email", email,
+                                      limit=2)
+        if not rows:
+            return None
+        # Defensive: the GSI cannot enforce uniqueness, so if a duplicate
+        # ever slipped through, prefer the oldest account rather than
+        # picking arbitrarily between them.
+        rows.sort(key=lambda r: str(r.get("created_at", "")))
+        return rows[0]
 
     def authenticate(self, email: str, password: str) -> dict:
         """Return the stored user record, or raise AuthError."""
@@ -234,31 +272,84 @@ class AuthStore:
             hash_password(password)
             raise AuthError("Email or password is incorrect.")
 
-        locked = user.get("locked_until")
-        if locked and _iso(_now()) < str(locked):
+        recent_failures = self._recent_failures(email)
+        if recent_failures >= AUTH.max_failed:
             raise AuthError(
-                "Too many failed attempts. Try again after "
-                f"{str(locked)[11:16]} UTC.")
+                f"Too many failed attempts. Try again in "
+                f"{AUTH.lockout_minutes} minutes.")
 
-        if user.get("account_status") != "active":
+        if str(user.get("account_status", "active")) != "active":
             raise AuthError("That account is disabled.")
 
-        if not verify_password(password, user.get("password_hash", "")):
-            fails = int(user.get("failed_attempts", 0)) + 1
-            user["failed_attempts"] = fails
-            if fails >= AUTH.max_failed:
-                user["locked_until"] = _iso(
-                    _now() + timedelta(minutes=AUTH.lockout_minutes))
-                user["failed_attempts"] = 0
-            self.users.put(user)
+        if not verify_password(password, str(user.get("password_hash", ""))):
+            self._record_failure(email)
             raise AuthError("Email or password is incorrect.")
 
-        user["failed_attempts"] = 0
-        user["locked_until"] = None
+        self._clear_failures(email)
         user["last_login_at"] = _iso(_now())
-        user["login_count"] = int(user.get("login_count", 0)) + 1
+        user["login_count"] = int(user.get("login_count", 0) or 0) + 1
         self.users.put(user)
         return user
+
+    # ------------------------------------------------------------ lockout
+    # Failed attempts live in their own table (`dfd_login_attempts`,
+    # identifier + attempted_at, TTL on `ttl`) rather than as a counter on
+    # the user row. Two reasons: an attempt against an address with no
+    # account is still worth recording, and the TTL expires the lockout on
+    # its own instead of needing a `locked_until` timestamp compared on
+    # every read.
+    # `attempted_at` is the RANGE key, so it must be unique per attempt.
+    # In whole seconds it is not: a scripted attacker makes every attempt
+    # inside the same second, all nine writes collide on one key and
+    # overwrite each other, and the counter never passes the threshold —
+    # the lockout is defeated by exactly the speed it exists to punish.
+    # Microseconds give each attempt its own key. DynamoDB TTL, separately,
+    # demands epoch *seconds*, which is why `ttl` keeps different units.
+    _USEC = 1_000_000
+
+    def _window_start(self) -> int:
+        return int((_now() - timedelta(minutes=AUTH.lockout_minutes))
+                   .timestamp() * self._USEC)
+
+    def _recent_failures(self, identifier: str) -> int:
+        try:
+            rows = self.attempts.query(key_value=identifier, Limit=100)
+        except Exception:
+            return 0
+        cutoff = self._window_start()
+        return sum(1 for r in rows
+                   if int(r.get("attempted_at", 0) or 0) >= cutoff)
+
+    def _record_failure(self, identifier: str) -> None:
+        now = _now()
+        micros = int(now.timestamp() * self._USEC)
+        ok = self.attempts.put({
+            "identifier": identifier,
+            "attempted_at": micros,
+            # The table's TTL attribute is `ttl`, and TTL is epoch seconds.
+            "ttl": int(now.timestamp()) + AUTH.lockout_minutes * 60 * 4,
+            "outcome": "failed",
+        })
+        if not ok:
+            # A lockout that silently stops recording is worse than none,
+            # because nothing looks wrong. Say so.
+            print("[auth] WARNING: could not record failed attempt: "
+                  f"{getattr(self.attempts, 'error', 'unknown')}")
+
+    def _clear_failures(self, identifier: str) -> None:
+        """A successful sign-in ends the lockout window immediately."""
+        try:
+            rows = self.attempts.query(key_value=identifier, Limit=100)
+        except Exception:
+            return
+        for r in rows:
+            self.attempts.delete({"identifier": identifier,
+                                  "attempted_at": r.get("attempted_at")})
+
+    def failure_count(self, identifier: str) -> int:
+        """Failed attempts inside the current window. Exposed for tests
+        and for an operator asking why an account is locked."""
+        return self._recent_failures((identifier or "").strip().lower())
 
     # ------------------------------------------------------------ sessions
     def create_session(self, user: dict, ip: str = "", agent: str = "") -> str:
@@ -266,25 +357,32 @@ class AuthStore:
         token = secrets.token_urlsafe(32)
         now = _now()
         expires = now + timedelta(days=AUTH.session_days)
+        # Field names follow the four rows already in `dfd_sessions`:
+        # token_hash is the partition key, created_at/expires_at are epoch
+        # numbers, and the address field is `ip_address`.
         self.sessions.put({
-            "session_id": _token_id(token),
+            "token_hash": _token_id(token),
             "user_id": user["user_id"],
             "email": user.get("email"),
-            "created_at": _iso(now),
-            "expires_at_iso": _iso(expires),
-            # Numeric epoch attribute — this is what DynamoDB TTL reads.
+            "created_at": now.timestamp(),
+            # Epoch seconds: this is the attribute DynamoDB TTL reads.
             "expires_at": int(expires.timestamp()),
-            "ip": (ip or "")[:64],
+            "ip_address": (ip or "")[:64] or "unknown",
             "user_agent": (agent or "")[:200],
             "revoked": False,
         })
         return token
 
     def resolve(self, token: str) -> dict | None:
-        """Token -> user record, or None. Enforces expiry itself."""
+        """Token -> user record, or None. Enforces expiry itself.
+
+        TTL deletion is asynchronous — AWS documents it as typically
+        within 48 hours — so an expired row can still be read back.
+        Trusting TTL alone would silently extend every session.
+        """
         if not token:
             return None
-        sess = self.sessions.get({"session_id": _token_id(token)})
+        sess = self.sessions.get({"token_hash": _token_id(token)})
         if not sess or sess.get("revoked"):
             return None
         try:
@@ -297,16 +395,16 @@ class AuthStore:
     def revoke(self, token: str) -> bool:
         if not token:
             return False
-        return self.sessions.delete({"session_id": _token_id(token)})
+        return self.sessions.delete({"token_hash": _token_id(token)})
 
     def revoke_all(self, user_id: str) -> int:
         """Sign out every device — the control an analyst needs when a
         laptop goes missing mid-investigation."""
-        rows = self.sessions.query_index("user_id-index", "user_id",
-                                         user_id, limit=200)
+        rows = self.sessions.query_index(tables.USER_SESSIONS_INDEX,
+                                         "user_id", user_id, limit=200)
         n = 0
         for r in rows:
-            if self.sessions.delete({"session_id": r["session_id"]}):
+            if self.sessions.delete({"token_hash": r["token_hash"]}):
                 n += 1
         return n
 
@@ -315,31 +413,46 @@ class AuthStore:
         a password change should do, since logging the owner out of the
         session they just used is only friction."""
         keep = _token_id(keep_token) if keep_token else ""
-        rows = self.sessions.query_index("user_id-index", "user_id",
-                                         user_id, limit=200)
+        rows = self.sessions.query_index(tables.USER_SESSIONS_INDEX,
+                                         "user_id", user_id, limit=200)
         n = 0
         for r in rows:
-            if r.get("session_id") == keep:
+            if r.get("token_hash") == keep:
                 continue
-            if self.sessions.delete({"session_id": r["session_id"]}):
+            if self.sessions.delete({"token_hash": r["token_hash"]}):
                 n += 1
         return n
 
     def status(self) -> dict:
         return {"users": self.users.status(),
-                "sessions": self.sessions.status()}
+                "sessions": self.sessions.status(),
+                "login_attempts": self.attempts.status()}
+
+
+def display_name_of(user: dict) -> str:
+    """Accounts created before this revision store `display_name`; newer
+    ones store both. Falling back to the email's local part keeps the
+    header badge sensible for any row that has neither."""
+    for field in ("name", "display_name"):
+        value = str(user.get(field) or "").strip()
+        if value:
+            return value
+    email = str(user.get("email") or "")
+    return email.split("@")[0] or "Examiner"
 
 
 def public_user(user: dict) -> dict:
     """The subset safe to hand the browser. Never the hash."""
+    name = display_name_of(user)
     return {
         "user_id": user.get("user_id"),
         "email": user.get("email"),
-        "name": user.get("name"),
+        "name": name,
         "studentId": user.get("student_id"),
-        "role": user.get("role"),
-        "initials": user.get("initials") or _initials(user.get("name", "")),
+        "role": user.get("role") or ROLES[0],
+        "initials": user.get("initials") or _initials(name),
         "created_at": user.get("created_at"),
         "last_login_at": user.get("last_login_at"),
         "login_count": user.get("login_count", 0),
+        "is_admin": bool(user.get("is_admin", 0)),
     }

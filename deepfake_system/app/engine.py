@@ -127,7 +127,7 @@ class FaceExtractor:
                 self.det = cv2.CascadeClassifier(_haar_path())
                 self.backend = "haar"
 
-    def _boxes(self, rgb: np.ndarray, min_conf: float = 0.60):
+    def _boxes(self, rgb: np.ndarray, min_conf: float = 0.85):
         h, w = rgb.shape[:2]
         if self.backend == "mtcnn" and self.det is not None:
             try:
@@ -139,6 +139,7 @@ class FaceExtractor:
                         return valid
             except Exception:
                 pass
+            return []
         if self.backend == "mediapipe" and self.det is not None:
             try:
                 res = self.det.process(rgb)
@@ -153,10 +154,11 @@ class FaceExtractor:
                         return out
             except Exception:
                 pass
+            return []
         gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
         if self._haar is None:
             self._haar = cv2.CascadeClassifier(_haar_path())
-        faces = self._haar.detectMultiScale(gray, 1.1, 4, minSize=(36, 36))
+        faces = self._haar.detectMultiScale(gray, 1.1, 6, minSize=(60, 60))
         return [np.array([x, y, x + fw, y + fh]) for x, y, fw, fh in faces]
 
     def _crop(self, rgb: np.ndarray, box: Any, margin: float = 0.32):
@@ -317,6 +319,70 @@ class Engine:
                 counts[s:s + T] += 1
         return np.array(logits), (frame_scores / counts).tolist()
 
+    # ----------------------------------------------------------- explain
+    def _explain(self, crops, shown: list, frame_scores: list,
+                 frames: list) -> dict | None:
+        """Attach Grad-CAM overlays to the most suspicious shown frames.
+
+        IR 3.4.1 UI/UX requirement 3. Returns a summary for the response,
+        and mutates `frames` in place to add a `cam` data URI where one
+        could be produced. Best-effort throughout: an explanation that
+        fails must never cost the analyst their verdict.
+        """
+        if (self.mode != "model" or self.model is None or not shown
+                or int(INFER.explain_frames) <= 0):
+            return None
+        try:
+            from app import explain as xai
+            from data.dataset import MEAN, STD  # type: ignore
+        except Exception as exc:
+            print(f"[explain] unavailable: {type(exc).__name__}: {exc}")
+            return None
+
+        top_n = max(1, int(INFER.explain_frames))
+        # Rank the frames the UI is actually showing, so every overlay
+        # produced has somewhere to appear.
+        ranked = sorted(
+            shown,
+            key=lambda i: (frame_scores[i]
+                           if i < len(frame_scores) else 0.0),
+            reverse=True)[:top_n]
+
+        maps = xai.explain_clip(self.model, crops, ranked, self.device,
+                               self.clip_len, MEAN, STD)
+        if not maps:
+            return None
+
+        pos = {idx: k for k, idx in enumerate(shown)}
+        explained = []
+        for i, payload in maps.items():
+            uri = xai.overlay(crops[i], payload["cam"])
+            if not uri:
+                continue
+            k = pos.get(i)
+            if k is not None and k < len(frames):
+                frames[k]["cam"] = uri
+                frames[k]["cam_text"] = payload["text"]
+            explained.append({
+                "frame": k,
+                "t": frames[k]["t"] if k is not None and k < len(frames)
+                else None,
+                "score": round(float(frame_scores[i]), 4)
+                if i < len(frame_scores) else None,
+                "text": payload["text"],
+            })
+        if not explained:
+            return None
+        return {
+            "method": "Grad-CAM",
+            "layer": "last convolutional block",
+            "frames_explained": len(explained),
+            "detail": explained,
+            "caveat": ("The heatmap shows where the network looked, not a "
+                       "segmentation of the manipulated region. A map over "
+                       "the background is a reason to distrust the score."),
+        }
+
     # ------------------------------------------------------------- analyse
     def analyse(self, video_path: str, filename: str = "") -> dict[str, Any]:
         t0 = time.time()
@@ -415,17 +481,12 @@ class Engine:
             lip_reading = audio_report.get("lipsync", {}).get("reading")
             voice_synth = float(audio_report.get("voice", {}).get("synthetic_indicator", 0.0) or 0.0)
             high_flat = float(audio_report.get("voice", {}).get("high_band_flatness", 0.0) or 0.0)
-            p90_frame = float(np.percentile(frame_scores, 90)) if len(frame_scores) > 4 else float(max(frame_scores or [0]))
 
             if lip_reading == "mismatched":
-                band += 0.05
-                prob = max(prob, 0.72)
-            elif voice_synth >= 0.58 or high_flat >= 0.65:
-                band += 0.05
-                prob = max(prob, 0.68)
-            elif prov.get("likely_recompressed") and p90_frame >= 0.55:
+                band += 0.08
+            if voice_synth >= 0.65 or high_flat >= 0.70:
                 band += 0.06
-                prob = max(prob, 0.60)
+
 
         lo, hi = max(0.0, prob - band), min(1.0, prob + band)
         straddles = lo <= self.threshold <= hi
@@ -455,7 +516,8 @@ class Engine:
             calibrated_frame_scores = [prob] * len(crops)
 
         frames = []
-        for i in range(0, len(crops), step):
+        shown = list(range(0, len(crops), step))
+        for i in shown:
             frames.append({
                 "t": times[i] if i < len(times) else None,
                 "score": round(float(calibrated_frame_scores[i]), 4)
@@ -463,11 +525,22 @@ class Engine:
                 "thumb": thumb(crops[i]),
             })
 
+        # IR 3.4.1 UI/UX: explainable visual cues. Only the few frames the
+        # model found most suspicious are explained — Grad-CAM costs a
+        # forward and a backward pass each, and explaining every frame
+        # would multiply the analysis time for no extra insight.
+        t = time.time()
+        explanation = self._explain(crops, shown, calibrated_frame_scores,
+                                    frames)
+        if explanation:
+            timings["explain"] = round(time.time() - t, 3)
+
         return {"label": label, "probability": round(prob, 4),
                 "confidence_band": [round(lo, 4), round(hi, 4)],
                 "threshold": self.threshold, "engine": self.mode,
                 "backbone": self.backbone, "faces_found": len(crops),
                 "clips_scored": clips_scored, "frames": frames,
+                "explanation": explanation,
                 "provenance": prov, "media": meta, "features": features,
                 "content_credentials": credentials, "audio": audio_report,
                 "model_version": self.model_version,

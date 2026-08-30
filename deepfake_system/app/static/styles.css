@@ -830,6 +830,24 @@ button { font: inherit; color: inherit; }
 .cell img { display: block; width: 84px; height: 84px; object-fit: cover; }
 .cell-bar { height: 5px; background: rgba(255, 255, 255, 0.08); }
 .cell-bar i { display: block; height: 100%; }
+
+/* Explainable-AI cue (IR 3.4.1 UI/UX). Only the frames carrying a
+   Grad-CAM overlay get the marker, so the strip still reads as evidence
+   first and explanation second. */
+.cell--explained { border-color: rgba(56, 189, 248, 0.55); }
+.cell-xai {
+  position: absolute; top: 4px; right: 4px; z-index: 2;
+  font-family: var(--font-mono, monospace); font-size: 8px; font-weight: 700;
+  letter-spacing: 0.06em; line-height: 1;
+  padding: 3px 4px; border-radius: 3px;
+  color: #E0F2FE; background: rgba(2, 30, 48, 0.82);
+  border: 1px solid rgba(56, 189, 248, 0.55);
+  pointer-events: none;
+}
+.cell-xai.is-on {
+  color: #04121C; background: var(--cyber-cyan, #38BDF8);
+  border-color: var(--cyber-cyan, #38BDF8);
+}
 .cell-t {
   font-family: var(--font-mono); font-size: 10px; color: var(--ink-dim);
   text-align: center; padding: 4px 0 3px; font-weight: 500;
@@ -939,40 +957,12 @@ button { font: inherit; color: inherit; }
   position: relative; z-index: 2; padding: 60px 24px 80px;
   max-width: 1300px; margin: 0 auto; border-top: 1px solid var(--line-subtle);
 }
-.capabilities-inner { margin: 0 auto; }
-.capabilities-head { text-align: center; max-width: 700px; margin: 0 auto 48px; }
 .section-title {
   font-family: var(--font-display); font-size: clamp(28px, 3.5vw, 42px);
   font-weight: 700; letter-spacing: -0.025em; margin: 12px 0 14px;
   color: var(--ink-pure);
 }
 .section-subtitle { font-size: 16px; color: var(--ink-mid); line-height: 1.6; }
-
-.capabilities-grid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 24px;
-}
-.cap-card {
-  background: var(--bg-glass); border: 1px solid var(--line-subtle);
-  border-radius: var(--radius-lg); padding: 32px 26px;
-  backdrop-filter: blur(14px); transition: all 0.25s ease;
-}
-.cap-card:hover {
-  transform: translateY(-4px); border-color: var(--line-cyber);
-  box-shadow: 0 14px 35px rgba(0, 240, 255, 0.12);
-}
-.cap-icon-box {
-  width: 48px; height: 48px; border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-subtle);
-  display: flex; align-items: center; justify-content: center; margin-bottom: 20px;
-}
-.cap-title {
-  font-family: var(--font-display); font-size: 18px; font-weight: 700;
-  margin: 0 0 10px; color: var(--ink-pure);
-}
-.cap-desc {
-  font-size: 14px; color: var(--ink-mid); line-height: 1.6; margin: 0;
-}
 
 /* ── Footer ─────────────────────────────────────────────────── */
 .footer {
@@ -1777,80 +1767,6 @@ button { font: inherit; color: inherit; }
   color: var(--cyber-cyan);
 }
 
-/* ── 05 Methodology pipeline ──────────────────────────────────── */
-.pipeline {
-  list-style: none; margin: 0 0 34px; padding: 0;
-  display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
-  counter-reset: pipe;
-}
-.pipe-stage {
-  position: relative; display: flex; flex-direction: column; gap: 5px;
-  background: var(--bg-card); border: 1px solid var(--line-subtle);
-  border-top: 2px solid var(--cyber-cyan);
-  border-radius: var(--radius-md); padding: 16px 16px 18px;
-}
-.pipe-stage:not(:last-child)::after {
-  content: '›'; position: absolute; right: -11px; top: 50%;
-  transform: translateY(-50%); color: var(--ink-dim);
-  font-size: 20px; line-height: 1; z-index: 3;
-}
-.pipe-step {
-  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em;
-  text-transform: uppercase; color: var(--cyber-cyan);
-}
-.pipe-name {
-  font-family: var(--font-display); font-size: 14.5px; font-weight: 700;
-  color: var(--ink-pure);
-}
-.pipe-desc { font-size: 12.5px; color: var(--ink-dim); line-height: 1.55; }
-
-#methodology .capabilities-grid {
-  grid-template-columns: repeat(auto-fit, minmax(262px, 1fr)); gap: 18px;
-}
-#methodology .cap-card { padding: 26px 22px; }
-#methodology .cap-card:hover {
-  transform: translateY(-3px); box-shadow: var(--shadow-lift);
-  border-color: var(--line-cyber);
-}
-.cap-ref {
-  margin: 14px 0 0; padding-top: 12px;
-  border-top: 1px solid var(--line-hair);
-  font-family: var(--font-mono); font-size: 11px;
-  color: var(--ink-dim); letter-spacing: 0.03em;
-}
-
-/* ── 06 Limitations & references ──────────────────────────────── */
-.limits-grid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(272px, 1fr));
-  gap: 18px; margin-bottom: 40px;
-}
-.limit-card {
-  background: var(--bg-card); border: 1px solid var(--line-subtle);
-  border-left: 3px solid var(--maybe);
-  border-radius: var(--radius-md); padding: 20px 22px;
-}
-.limit-title {
-  font-family: var(--font-display); font-size: 15px; font-weight: 700;
-  color: var(--ink-pure); margin: 0 0 9px;
-}
-.limit-body { margin: 0; font-size: 13.5px; color: var(--ink-mid); line-height: 1.65; }
-
-.refs-block {
-  border-top: 1px solid var(--line-hair); padding-top: 28px;
-}
-.refs-title {
-  font-family: var(--font-display); font-size: 15px; font-weight: 700;
-  color: var(--ink-pure); margin: 0 0 14px;
-}
-.refs-list {
-  margin: 0; padding-left: 22px;
-  font-size: 13px; color: var(--ink-mid); line-height: 1.85;
-  columns: 2; column-gap: 44px;
-}
-.refs-list li { break-inside: avoid; margin-bottom: 4px; }
-.refs-list li::marker { color: var(--ink-dim); font-family: var(--font-mono); font-size: 11px; }
-.refs-list em { color: var(--ink-bright); font-style: italic; }
-
 /* ── Locked portal & workspace spacing in the new flow ────────── */
 .locked-portal { margin: 0 auto; padding: 60px 24px; max-width: 1180px; }
 .locked-portal-card { padding: 44px 30px; }
@@ -1874,10 +1790,6 @@ button { font: inherit; color: inherit; }
 .footer-links { flex-wrap: wrap; gap: 8px 20px; }
 
 /* ── Responsive: flexible from 320px up ───────────────────────── */
-@media (max-width: 1080px) {
-  .pipeline { grid-template-columns: repeat(auto-fit, minmax(178px, 1fr)); }
-  .pipe-stage:not(:last-child)::after { display: none; }
-}
 
 /* Seven nav items plus the account widget stop fitting on one row at
    about 1150px once the strapline is dropped, so the menu collapses
@@ -1909,7 +1821,6 @@ button { font: inherit; color: inherit; }
 @media (max-width: 1024px) {
   .shell { grid-template-columns: 1fr; }
   .rail { position: static; max-width: none; }
-  .refs-list { columns: 1; }
 }
 
 @media (max-width: 720px) {
@@ -1932,7 +1843,7 @@ button { font: inherit; color: inherit; }
   .hero-cta-group { flex-direction: column; align-items: stretch; }
   .btn-hero { justify-content: center; width: 100%; }
   .page-section { padding: 44px 14px; }
-  .info-card, .step-card, .limit-card { padding: 18px 16px; }
+  .info-card, .step-card { padding: 18px 16px; }
   .note-strip { flex-direction: column; gap: 10px; padding: 14px 16px; }
   .runtime-strip { flex-direction: column; align-items: flex-start; }
   .locked-portal-card { padding: 32px 18px; }
@@ -2183,4 +2094,70 @@ body { overflow-x: clip; max-width: 100%; }
   .settings-stats { gap: 14px; }
   .settings-danger { flex-direction: column; align-items: stretch; }
   .btn-danger { width: 100%; }
+}
+
+/* ── Mobile UX pass ────────────────────────────────────────────────
+   The PDF preview is a fixed 794px "sheet" (A4 @ 96dpi) so the export
+   renders at print resolution. `zoom` (not `transform`) shrinks it for
+   small screens without leaving reserved blank space to compensate for.
+   It only fires under this max-width query, which never matches inside
+   html2canvas's offscreen clone (rendered at windowWidth:1024 — see
+   downloadPdfFile() in app.js), so the exported PDF is never affected. */
+@media (max-width: 860px) {
+  .pdf-modal-scroll { padding: 16px 8px 28px; }
+  .pdf-paper-sheet { zoom: 0.56; }
+  .pdf-modal-toolbar { padding: 0 10px; gap: 6px; }
+  .pdf-modal-toolbar-title span:last-child { display: none; }
+  .btn-pdf-action { padding: 8px 10px; }
+}
+@media (max-width: 480px) {
+  .pdf-paper-sheet { zoom: 0.42; }
+  .pdf-btn-label { display: none; }
+  .btn-pdf-action { padding: 9px; }
+}
+@media (max-width: 360px) {
+  .pdf-paper-sheet { zoom: 0.34; }
+}
+
+/* Case history rows: bigger tap targets once the rail is full-width. */
+@media (max-width: 640px) {
+  .recent-item { padding: 6px 8px; gap: 8px; }
+  .recent-btn { padding: 8px 2px; gap: 10px; }
+  .recent-name { font-size: 13px; }
+  .recent-score { font-size: 12.5px; }
+  .recent-pdf-btn { padding: 8px 10px; font-size: 11px; min-height: 36px; }
+}
+
+/* ── FAQ accordion ─────────────────────────────────────────────
+   Native <details>/<summary> — accessible and keyboard-operable
+   with no extra JS. */
+.faq-list {
+  display: flex; flex-direction: column; gap: 10px; max-width: 860px;
+}
+.faq-item {
+  background: var(--bg-card); border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-lg); overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+.faq-item[open] { border-color: var(--line-cyber); }
+.faq-question {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 16px 20px; cursor: pointer; list-style: none;
+  font-family: var(--font-display); font-size: 15px; font-weight: 600;
+  color: var(--ink-pure); user-select: none;
+}
+.faq-question::-webkit-details-marker { display: none; }
+.faq-question::marker { content: ''; }
+.faq-chevron { flex-shrink: 0; color: var(--ink-dim); transition: transform 0.2s ease; }
+.faq-item[open] .faq-chevron { transform: rotate(180deg); color: var(--cyber-cyan); }
+.faq-answer {
+  margin: 0; padding: 0 20px 18px; font-size: 13.5px; line-height: 1.7;
+  color: var(--ink-mid); max-width: 68ch;
+}
+.faq-answer a { color: var(--cyber-cyan); text-decoration: none; }
+.faq-answer a:hover { text-decoration: underline; }
+
+@media (max-width: 480px) {
+  .faq-question { padding: 14px 16px; font-size: 14px; }
+  .faq-answer { padding: 0 16px 16px; }
 }
