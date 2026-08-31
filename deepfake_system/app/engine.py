@@ -481,11 +481,17 @@ class Engine:
             lip_reading = audio_report.get("lipsync", {}).get("reading")
             voice_synth = float(audio_report.get("voice", {}).get("synthetic_indicator", 0.0) or 0.0)
             high_flat = float(audio_report.get("voice", {}).get("high_band_flatness", 0.0) or 0.0)
+            p90_frame = float(np.percentile(frame_scores, 90)) if len(frame_scores) > 4 else float(max(frame_scores or [0]))
 
             if lip_reading == "mismatched":
-                band += 0.08
-            if voice_synth >= 0.65 or high_flat >= 0.70:
+                band += 0.05
+                prob = max(prob, 0.72)
+            elif voice_synth >= 0.58 or high_flat >= 0.65:
+                band += 0.05
+                prob = max(prob, 0.68)
+            elif prov.get("likely_recompressed") and p90_frame >= 0.55:
                 band += 0.06
+                prob = max(prob, 0.60)
 
 
         lo, hi = max(0.0, prob - band), min(1.0, prob + band)
