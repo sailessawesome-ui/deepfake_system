@@ -1,4 +1,3 @@
-"""Simple, thread-safe local JSON table for zero-retention storage."""
 from __future__ import annotations
 
 import json

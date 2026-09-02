@@ -1,34 +1,3 @@
-"""Model registry and hot-swap — IR 3.4.1, non-functional requirement 4.
-
-"The system architecture should enable the ongoing updating of its machine
-learning models to keep up with the accelerating, ongoing changes in the
-technologies involved in deepfake generation."
-
-Before this, updating the model meant overwriting `runs/v1/best.pt` and
-restarting the process. That fails the requirement in three ways: the
-service goes down, a bad checkpoint is only discovered after it is already
-live, and nothing records that the model changed — so a verdict issued
-last week cannot be tied to the weights that produced it.
-
-What this adds:
-
-- **Discovery.** Any `*.pt` under `runs/` is a candidate, with the metrics
-  the training run recorded alongside it.
-- **Validation before activation.** A candidate is loaded into a *separate*
-  model instance and made to score a synthetic clip. Only if that produces
-  a finite probability does it replace the live one. A checkpoint that is
-  truncated, built for a different architecture, or silently outputs NaN
-  is rejected while the running model keeps serving.
-- **Atomic swap.** The engine's attributes are replaced in one step under
-  a lock, so an analysis in flight finishes on the model it started with.
-- **An audit trail.** Activation is an audited event, and `model_version`
-  is already written onto every stored analysis, so any past verdict can
-  be traced to the weights behind it.
-
-Activation is admin-only. A detection model is the thing the entire
-forensic claim rests on; letting any account swap it would make every
-report unfalsifiable.
-"""
 from __future__ import annotations
 
 import sys
@@ -50,7 +19,6 @@ def _runs_dir() -> Path:
 
 
 def discover() -> list[dict]:
-    """Every checkpoint under runs/, newest first."""
     root = _runs_dir()
     out: list[dict] = []
     if not root.exists():
@@ -77,19 +45,10 @@ def discover() -> list[dict]:
 
 
 def _peek(path: Path) -> dict:
-    """Read a checkpoint's metadata without building the model.
-
-    `weights_only=True` matters: a .pt file is a pickle, and unpickling an
-    untrusted one executes arbitrary code. Listing the available models
-    must not be a way to run something.
-    """
     try:
         import torch  # type: ignore
         ck = torch.load(path, map_location="cpu", weights_only=True)
     except Exception:
-        # Older checkpoints saved with a config dict cannot be read under
-        # weights_only. Report what the filesystem knows instead of
-        # falling back to an unsafe load.
         return {"readable": False, "backbone": None, "metrics": None}
 
     cfg = ck.get("config", {}) if isinstance(ck, dict) else {}
@@ -104,11 +63,6 @@ def _peek(path: Path) -> dict:
 
 
 def validate(path: Path) -> dict:
-    """Load a candidate in isolation and make it score something.
-
-    Returns {"ok": bool, "reason": str, ...}. Never raises, and never
-    touches the running engine.
-    """
     import numpy as np
 
     try:
@@ -130,8 +84,6 @@ def validate(path: Path) -> dict:
                                        "(no 'model' state dict)"}
 
     cfg = ck.get("config", {}) or {}
-    # Build against a copy of the config so a failed candidate cannot
-    # leave the global MODEL settings mutated for the live engine.
     import copy
     probe_cfg = copy.deepcopy(MODEL)
     probe_cfg.backbone = cfg.get("backbone", MODEL.backbone)
@@ -151,9 +103,6 @@ def validate(path: Path) -> dict:
                 "reason": f"will not build: {type(exc).__name__}: "
                           f"{str(exc)[:120]}"}
 
-    # A smoke test on noise. It cannot tell us the model is *good* — only
-    # that it runs and produces a usable number. A checkpoint that emits
-    # NaN passes every structural check and then poisons every verdict.
     clip_len = cfg.get("clip_len", DATA.clip_len)
     size = cfg.get("img_size", DATA.img_size)
     try:
@@ -163,7 +112,7 @@ def validate(path: Path) -> dict:
         with torch.no_grad():
             logit, frame_logits = model(x)
         prob = float(torch.sigmoid(logit)[0])
-        if not (0.0 <= prob <= 1.0) or prob != prob:      # NaN != NaN
+        if not (0.0 <= prob <= 1.0) or prob != prob:     
             return {"ok": False, "reason": f"produced an unusable "
                                            f"probability ({prob})"}
         if int(frame_logits.shape[1]) != clip_len:
@@ -188,16 +137,9 @@ def validate(path: Path) -> dict:
 
 
 def activate(engine, checkpoint_id: str) -> dict:
-    """Validate a checkpoint, then swap it into a live engine.
-
-    The engine keeps serving its current model throughout; if anything
-    below fails, nothing about it changes.
-    """
     root = _runs_dir()
     path = (root / checkpoint_id).resolve()
 
-    # Path containment: the id comes off an HTTP request, so "../../etc"
-    # must not resolve to somewhere outside the runs directory.
     try:
         path.relative_to(root.resolve())
     except ValueError:
@@ -210,10 +152,6 @@ def activate(engine, checkpoint_id: str) -> dict:
     with _swap_lock:
         previous = engine.model_version
         try:
-            # Engine._load rebuilds model, threshold, clip_len and
-            # model_version from the checkpoint. Doing it through the
-            # engine's own loader keeps one code path for "how a model is
-            # brought up" rather than duplicating it here.
             engine._load(str(path))
         except Exception as exc:
             return {"ok": False,

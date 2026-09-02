@@ -1,17 +1,3 @@
-"""DynamoDB table with the same surface as app/local_table.Table.
-
-Deliberately a drop-in: same constructor signature, same method names,
-same return types. app/tables.py picks one or the other from
-DFD_DB_BACKEND, and nothing downstream knows which it got.
-
-Two conversions the callers must not have to think about:
-
-- **Decimal.** DynamoDB has no float type; boto3 hands back Decimal and
-  refuses to store float. Everything is converted on the way in and back
-  on the way out, so a probability is a plain Python float either side.
-- **Empty strings.** Dropped on write. They are legal in non-key
-  attributes but read back falsy and cause more confusion than they solve.
-"""
 from __future__ import annotations
 
 import threading
@@ -77,7 +63,7 @@ class Table:
         self.name = table_name
         self.pk, self.sk = key_schema
         self.region = region
-        self.path = Path(local_path)          # unused; kept for API parity
+        self.path = Path(local_path)         
         self.backend = "dynamodb"
         self.error: str | None = None
         self._table: Any = None
@@ -89,7 +75,7 @@ class Table:
             return
         try:
             t = res.Table(table_name)
-            t.load()                          # DescribeTable: creds + existence
+            t.load()                         
             self._table = t
         except Exception as exc:
             self.backend = "unavailable"
@@ -99,14 +85,12 @@ class Table:
     def durable(self) -> bool:
         return self._table is not None
 
-    # ------------------------------------------------------------ writes
     def put(self, item: dict, unique: bool = False) -> bool:
         if self._table is None:
             return False
         item = {k: v for k, v in item.items() if v is not None}
         kwargs: dict[str, Any] = {"Item": clean(item)}
         if unique:
-            # The only atomic uniqueness primitive DynamoDB offers.
             kwargs["ConditionExpression"] = f"attribute_not_exists({self.pk})"
         try:
             self._table.put_item(**kwargs)
@@ -135,14 +119,10 @@ class Table:
         return self.delete(key)
 
     def update(self, key: dict, updates: dict) -> dict | None:
-        """Read-modify-write. Simpler than an UpdateExpression and avoids
-        the reserved-word minefield (`status`, `role`, `name` are all
-        reserved); at this volume the extra read costs nothing."""
         current = self.get(key) or dict(key)
         current.update(updates)
         return current if self.put(current) else None
 
-    # ------------------------------------------------------------- reads
     def get(self, key: dict) -> dict | None:
         if self._table is None:
             return None
@@ -156,12 +136,6 @@ class Table:
     def get_item(self, key: dict) -> dict | None:
         return self.get(key)
 
-    # DynamoDB caps a single Scan or Query page at 1 MB *before* Limit is
-    # applied, so one call can return far fewer rows than asked for and
-    # still not be the end of the table. `dfd_analyses` rows carry a
-    # `report_json` blob, which makes a page run out after roughly seven
-    # of them. Paginating is not an optimisation here; without it every
-    # read silently under-reports.
     _MAX_PAGES = 20
 
     def _paginate(self, op, limit: int, **kwargs) -> list[dict]:
@@ -188,11 +162,6 @@ class Table:
         return self._paginate(self._table.scan, max(limit, 1))
 
     def query(self, **kwargs) -> list[dict]:
-        """Query the base table by partition key.
-
-        Pass the partition value as `key_value`, or hand through raw boto3
-        kwargs if you need something more specific.
-        """
         if self._table is None:
             return []
         value = kwargs.pop("key_value", None)

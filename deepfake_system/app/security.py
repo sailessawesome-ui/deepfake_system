@@ -94,9 +94,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         secure = is_secure(request)
 
         if FORCE_HTTPS and not secure and request.method in ("GET", "HEAD"):
-            # 307 preserves the method; only GET/HEAD are redirected
-            # because replaying a POST body over a redirect is a good way
-            # to lose an upload.
+
             url = request.url.replace(scheme="https")
             return RedirectResponse(str(url), status_code=307)
 
@@ -111,7 +109,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 "Strict-Transport-Security",
                 f"max-age={HSTS_SECONDS}; includeSubDomains")
 
-        # An evidence report must never be served from a shared cache.
+
         if request.url.path.startswith("/api/"):
             response.headers.setdefault("Cache-Control",
                                         "no-store, no-cache, must-revalidate")

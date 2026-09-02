@@ -1,18 +1,3 @@
-"""Evaluate 200 Fake vs 200 Real Videos.
-
-Displays the complete breakdown of False Positives, False Negatives,
-Fake-to-Fake ratio (Detection Rate / Recall), and Real-to-Real ratio (Specificity).
-
-Usage:
-    # 1. Evaluate 200 fake vs 200 real from the manifest test split:
-    python -m scripts.evaluate_200 --n 200
-
-    # 2. Evaluate from custom folders of video files:
-    python -m scripts.evaluate_200 --fake-dir path/to/fake_videos --real-dir path/to/real_videos --n 200
-
-    # 3. Test under simulated WhatsApp / messenger compression:
-    python -m scripts.evaluate_200 --n 200 --degraded
-"""
 from __future__ import annotations
 
 import argparse
@@ -33,7 +18,6 @@ from models.net import build_model            # noqa: E402
 
 
 def sample_balanced_manifest(videos: dict, n: int = 200, seed: int = 1337):
-    """Pick exactly n fake and n real videos from the loaded manifest."""
     rng = random.Random(seed)
     fake_keys = sorted(k for k, v in videos.items() if v["label"] == 1)
     real_keys = sorted(k for k, v in videos.items() if v["label"] == 0)
@@ -48,7 +32,6 @@ def sample_balanced_manifest(videos: dict, n: int = 200, seed: int = 1337):
 
 
 def load_from_directories(fake_dir: str, real_dir: str, n: int = 200, seed: int = 1337):
-    """Create a video dict from two raw video directories."""
     exts = {".mp4", ".avi", ".mov", ".mkv", ".webm"}
     f_path, r_path = Path(fake_dir), Path(real_dir)
 
@@ -78,22 +61,20 @@ def load_from_directories(fake_dir: str, real_dir: str, n: int = 200, seed: int 
 
 def print_detection_matrix(y: np.ndarray, p: np.ndarray, thr: float,
                            target_n: int, condition: str = "clean"):
-    """Format and print the 200 Fake vs 200 Real detection matrix."""
     pred = (p >= thr).astype(int)
 
-    tp = int(((pred == 1) & (y == 1)).sum())   # Fake detected as Fake
-    fn = int(((pred == 0) & (y == 1)).sum())   # Fake missed as Real (FN)
-    tn = int(((pred == 0) & (y == 0)).sum())   # Real cleared as Real
-    fp = int(((pred == 1) & (y == 0)).sum())   # Real flagged as Fake (FP)
+    tp = int(((pred == 1) & (y == 1)).sum())  
+    fn = int(((pred == 0) & (y == 1)).sum())  
+    tn = int(((pred == 0) & (y == 0)).sum())  
+    fp = int(((pred == 1) & (y == 0)).sum())  
 
     n_fake = int((y == 1).sum())
     n_real = int((y == 0).sum())
 
-    # Ratios
-    fake_to_fake_ratio = tp / max(1, n_fake)   # Recall / True Positive Rate
-    fake_to_real_ratio = fn / max(1, n_fake)   # Miss Rate / False Negative Rate
-    real_to_real_ratio = tn / max(1, n_real)   # Specificity / True Negative Rate
-    real_to_fake_ratio = fp / max(1, n_real)   # False Alarm Rate / False Positive Rate
+    fake_to_fake_ratio = tp / max(1, n_fake)  
+    fake_to_real_ratio = fn / max(1, n_fake)  
+    real_to_real_ratio = tn / max(1, n_real)  
+    real_to_fake_ratio = fp / max(1, n_real)  
 
     precision = tp / max(1, tp + fp)
     f1 = 2 * precision * fake_to_fake_ratio / max(1e-9, precision + fake_to_fake_ratio)
@@ -178,7 +159,6 @@ def main():
     if not ckpt_path.exists():
         sys.exit(f"Error: Checkpoint not found at {ckpt_path}. Please train a model or place best.pt in runs/v1/.")
 
-    # Load Model
     ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
     cfg = ckpt.get("config", {})
     MODEL.backbone = cfg.get("backbone", MODEL.backbone)
@@ -190,7 +170,6 @@ def main():
     model.load_state_dict(ckpt["model"])
     print(f"Loaded {MODEL.backbone} from {ckpt_path} on {device.upper()}")
 
-    # Determine Threshold
     thr = args.threshold
     if thr is None:
         cal_path = ckpt_path.parent / "calibration.json"
@@ -203,7 +182,6 @@ def main():
             thr = 0.50
             print("No calibration.json found - using default threshold: 0.500")
 
-    # Load Videos
     if args.fake_dir and args.real_dir:
         print(f"Loading custom video directories: {args.fake_dir} and {args.real_dir}")
         subset, n_f, n_r = load_from_directories(args.fake_dir, args.real_dir, n=args.n)

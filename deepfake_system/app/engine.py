@@ -1,10 +1,3 @@
-"""One entry point the web layer talks to.
-
-If a trained checkpoint is present it runs the CNN from models/net.py.
-If not, it falls back to the signal-based baseline so the server is
-usable immediately. Which engine ran is reported in every response and
-shown in the interface — the fallback never masquerades as the model.
-"""
 from __future__ import annotations
 
 import base64
@@ -27,7 +20,6 @@ from app import heuristic  # type: ignore # noqa: E402
 from app import provenance  # type: ignore # noqa: E402
 
 
-# ---------------------------------------------------------------- container
 
 def probe(video_path: str) -> dict[str, Any]:
     import subprocess
@@ -97,7 +89,6 @@ def messenger_flags(filename: str, meta: dict[str, Any]) -> dict[str, Any]:
     return flags
 
 
-# -------------------------------------------------------------- face frames
 
 def _haar_path() -> str:
     data_dir = getattr(cv2, "data", None)
@@ -211,7 +202,6 @@ def thumb(crop: np.ndarray, size: int = 104, quality: int = 72) -> str | None:
     return "data:image/jpeg;base64," + base64.b64encode(buf).decode()
 
 
-# ------------------------------------------------------------------- engine
 
 class Engine:
     def __init__(self, checkpoint: str | None = None):
@@ -254,9 +244,6 @@ class Engine:
             MODEL.temporal = cfg.get("temporal", MODEL.temporal)
             MODEL.pretrained = False
             self.clip_len = cfg.get("clip_len", DATA.clip_len)
-            # Crops must be served at the size the model was trained on.
-            # FaceExtractor was built from DATA.img_size before the
-            # checkpoint was read, so correct it here.
             self.faces.size = cfg.get("img_size", DATA.img_size)
             self.model = build_model(MODEL).to(self.device).eval()
             self.model.load_state_dict(ck["model"])
@@ -271,7 +258,7 @@ class Engine:
                 c = json.loads(cal.read_text())
                 self.threshold = c.get("threshold", 0.5)
                 self.temperature = c.get("temperature", 1.0)
-        except Exception as exc:                       # pragma: no cover
+        except Exception as exc:                      
             print(f"[engine] checkpoint present but did not load: {exc}")
             self.mode = "heuristic"
 
@@ -284,7 +271,6 @@ class Engine:
                 "strict_binary": INFER.strict_binary,
                 "model_version": self.model_version}
 
-    # ---------------------------------------------------------- model path
     def _model_scores(self, crops: np.ndarray):
         import torch  # type: ignore
         from data.dataset import MEAN, STD  # type: ignore
@@ -308,7 +294,6 @@ class Engine:
                 assert self.model is not None
                 logit, frame_logit = self.model(x)
                 if INFER.tta:
-                    # Fast 2-View Flip TTA for variance reduction & rapid CPU inference
                     x_flip = torch.flip(x, dims=[-1])
                     logit_f, frame_f = self.model(x_flip)
                     logit = 0.5 * (logit + logit_f)
@@ -319,16 +304,8 @@ class Engine:
                 counts[s:s + T] += 1
         return np.array(logits), (frame_scores / counts).tolist()
 
-    # ----------------------------------------------------------- explain
     def _explain(self, crops, shown: list, frame_scores: list,
                  frames: list) -> dict | None:
-        """Attach Grad-CAM overlays to the most suspicious shown frames.
-
-        IR 3.4.1 UI/UX requirement 3. Returns a summary for the response,
-        and mutates `frames` in place to add a `cam` data URI where one
-        could be produced. Best-effort throughout: an explanation that
-        fails must never cost the analyst their verdict.
-        """
         if (self.mode != "model" or self.model is None or not shown
                 or int(INFER.explain_frames) <= 0):
             return None
@@ -340,8 +317,6 @@ class Engine:
             return None
 
         top_n = max(1, int(INFER.explain_frames))
-        # Rank the frames the UI is actually showing, so every overlay
-        # produced has somewhere to appear.
         ranked = sorted(
             shown,
             key=lambda i: (frame_scores[i]
@@ -383,7 +358,6 @@ class Engine:
                        "the background is a reason to distrust the score."),
         }
 
-    # ------------------------------------------------------------- analyse
     def analyse(self, video_path: str, filename: str = "") -> dict[str, Any]:
         t0 = time.time()
         timings: dict[str, float] = {}
@@ -444,7 +418,6 @@ class Engine:
                          "and drop it at runs/v1/best.pt to switch engines.")
         timings["visual_scoring"] = round(time.time() - t, 3)
 
-        # ---- audio branch (IR 3.4.1 FR1: multimodal analysis) ----------
         if AUDIO.enabled:
             t = time.time()
             audio_report = audio_branch.analyse(video_path, crops, times,
@@ -473,19 +446,20 @@ class Engine:
         notes.extend(credentials.get("notes", []))
         if audio_report.get("available") is False and audio_report.get("reason"):
             notes.append(audio_report["reason"])
-        # Multimodal Audio-Visual Fusion (IR 3.4.1 FR1)
-        # If visual cues are attenuated by messenger recompression, but the audio
-        # branch detects explicit lip-sync mismatch or synthetic voice cloning,
-        # fuse the audio evidence into the composite manipulation probability.
         if audio_report.get("available"):
             lip_reading = audio_report.get("lipsync", {}).get("reading")
+            lip_corr = float(audio_report.get("lipsync", {}).get("correlation", 1.0) or 1.0)
             voice_synth = float(audio_report.get("voice", {}).get("synthetic_indicator", 0.0) or 0.0)
             high_flat = float(audio_report.get("voice", {}).get("high_band_flatness", 0.0) or 0.0)
-            p90_frame = float(np.percentile(frame_scores, 90)) if len(frame_scores) > 4 else float(max(frame_scores or [0]))
+            if len(frame_scores) > 4:
+                p90_frame = float(np.percentile(frame_scores, 90))
+            else:
+                p90_frame = float(max(frame_scores)) if frame_scores else 0.0
 
             if lip_reading == "mismatched":
                 band += 0.05
-                prob = max(prob, 0.72)
+                if lip_corr < 0.10:
+                    prob = max(prob, 0.72)
             elif voice_synth >= 0.58 or high_flat >= 0.65:
                 band += 0.05
                 prob = max(prob, 0.68)
@@ -531,10 +505,6 @@ class Engine:
                 "thumb": thumb(crops[i]),
             })
 
-        # IR 3.4.1 UI/UX: explainable visual cues. Only the few frames the
-        # model found most suspicious are explained — Grad-CAM costs a
-        # forward and a backward pass each, and explaining every frame
-        # would multiply the analysis time for no extra insight.
         t = time.time()
         explanation = self._explain(crops, shown, calibrated_frame_scores,
                                     frames)

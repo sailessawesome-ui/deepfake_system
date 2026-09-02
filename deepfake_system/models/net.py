@@ -1,11 +1,3 @@
-"""Detector network.
-
-Frames go through a shared CNN backbone; an optional SRM high-pass stream
-runs beside it because residual noise patterns behave differently from
-RGB content under compression. The per-frame embeddings are then pooled
-across the clip with an attention head, so a video where only a few
-frames are manipulated still gets flagged.
-"""
 from __future__ import annotations
 
 import sys
@@ -19,7 +11,6 @@ import torch.nn.functional as F
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from config import MODEL  # noqa: E402
 
-# Three standard SRM high-pass residual kernels.
 _SRM = torch.tensor([
     [[0, 0, 0, 0, 0], [0, -1, 2, -1, 0], [0, 2, -4, 2, 0],
      [0, -1, 2, -1, 0], [0, 0, 0, 0, 0]],
@@ -31,11 +22,10 @@ _SRM = torch.tensor([
 
 
 class SRMConv(nn.Module):
-    """Fixed high-pass filter bank, applied per colour channel."""
 
     def __init__(self):
         super().__init__()
-        w = _SRM.unsqueeze(1).repeat(3, 1, 1, 1)      # (9, 1, 5, 5)
+        w = _SRM.unsqueeze(1).repeat(3, 1, 1, 1)     
         self.register_buffer("weight", w)
 
     def forward(self, x):
@@ -44,15 +34,6 @@ class SRMConv(nn.Module):
 
 
 class MesoInception4(nn.Module):
-    """MesoNet / MesoInception-4, per Afchar et al. 2018 — the network
-    cited in IR section 1.4 (objective: To Develop).
-
-    Roughly 28k parameters against EfficientNetV2-S's 21M. It is far
-    weaker in absolute accuracy, but it is the architecture the report
-    specifies, it trains in minutes, and it makes an honest ablation row:
-    "the cited compact network vs a modern backbone, same data, same
-    protocol". Select it with --backbone mesonet.
-    """
 
     def __init__(self, num_classes=0):
         super().__init__()
@@ -103,8 +84,7 @@ class TemporalAttention(nn.Module):
             nn.Linear(dim, hidden), nn.Tanh(), nn.Linear(hidden, 1))
 
     def forward(self, x, return_weights=False):
-        # x: (B, T, D)
-        w = torch.softmax(self.score(x).squeeze(-1), dim=1)   # (B, T)
+        w = torch.softmax(self.score(x).squeeze(-1), dim=1)  
         pooled = torch.einsum("bt,btd->bd", w, x)
         return (pooled, w) if return_weights else (pooled, None)
 
@@ -149,13 +129,10 @@ class DeepfakeDetector(nn.Module):
             nn.Linear(pooled_dim, 256), nn.SiLU(),
             nn.Dropout(cfg.dropout * 0.5),
             nn.Linear(256, 1))
-        # Auxiliary per-frame head — supervising frames directly speeds up
-        # convergence and gives the UI a per-frame timeline.
         self.frame_head = nn.Sequential(nn.Dropout(cfg.dropout),
                                         nn.Linear(dim, 1))
 
     def encode_frames(self, x):
-        """x: (B, T, 3, H, W) -> (B, T, D)"""
         B, T = x.shape[:2]
         flat = x.flatten(0, 1)
         feat = self.backbone(flat)
@@ -164,8 +141,8 @@ class DeepfakeDetector(nn.Module):
         return feat.view(B, T, -1)
 
     def forward(self, x, return_attention=False):
-        feats = self.encode_frames(x)                     # (B, T, D)
-        frame_logits = self.frame_head(feats).squeeze(-1)  # (B, T)
+        feats = self.encode_frames(x)                    
+        frame_logits = self.frame_head(feats).squeeze(-1) 
 
         if self.temporal is not None and isinstance(self.temporal, nn.GRU):
             out, _ = self.temporal(feats)
@@ -175,7 +152,7 @@ class DeepfakeDetector(nn.Module):
         else:
             pooled, attn = feats.mean(dim=1), None
 
-        logit = self.head(pooled).squeeze(-1)              # (B,)
+        logit = self.head(pooled).squeeze(-1)             
         if return_attention:
             return logit, frame_logits, attn
         return logit, frame_logits

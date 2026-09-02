@@ -1,4 +1,3 @@
-"""Append-only event log for forensic examiner actions (ISO/IEC 27037 compliant)."""
 from __future__ import annotations
 
 import os
@@ -23,7 +22,6 @@ PASSWORD_CHANGE = "auth.password_change"
 ANALYSIS = "analysis.completed"
 ANALYSIS_FAILED = "analysis.failed"
 REPORT_READ = "report.read"
-# IR 3.4.1 non-functional 4: a model change is an evidential event.
 MODEL_ACTIVATED = "model.activated"
 MODEL_REJECTED = "model.rejected"
 
@@ -40,9 +38,6 @@ class AuditLog:
             "audit_day": now.strftime("%Y-%m-%d"),
             "event_ts": event_ts,
             "event": event,
-            # No personal default here. An event with no signed-in user is
-            # genuinely anonymous, and stamping it with the developer's own
-            # identity would put false attribution into an evidence log.
             "user_id": user_id or "anonymous",
             "email": email or None,
             "ip": (ip or "")[:64] or None,
@@ -53,12 +48,11 @@ class AuditLog:
             if self.table.put(item):
                 return event_ts
             print(f"[audit] write failed: {self.table.error}")
-        except Exception as exc:                  # never break a request
+        except Exception as exc:                 
             print(f"[audit] {type(exc).__name__}: {exc}")
         return None
 
     def day(self, date: str, limit: int = 100) -> list[dict]:
-        """One UTC date, newest first — a Query on the partition key."""
         rows = self.table.query(key_value=date, Limit=max(limit, 1))
         if not rows:
             rows = [r for r in self.table.scan(2000)

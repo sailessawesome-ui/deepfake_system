@@ -1,13 +1,3 @@
-"""Create any missing DynamoDB table, in the account the `env` file names.
-
-    python scripts/create_tables.py            # create what is missing
-    python scripts/create_tables.py --status   # report only, change nothing
-
-Idempotent, and deliberately conservative: a table that already exists is
-never altered. Four of the five already exist in the account and hold real
-records, so touching their schema would orphan those rows. In practice
-this only ever creates `dfd_audit_log`.
-"""
 from __future__ import annotations
 
 import sys
@@ -23,12 +13,6 @@ S, N = "S", "N"
 
 
 def _specs() -> list[dict]:
-    """Only tables this script is allowed to create.
-
-    The four pre-existing tables are intentionally absent: they are used
-    as found, and re-declaring their schema here would invite someone to
-    "fix" a mismatch by recreating a table that holds live data.
-    """
     return [{
         "TableName": STORE.audit_table,
         "KeySchema": [
@@ -77,7 +61,6 @@ def main() -> int:
 
     print(f"Region {STORE.region}, prefix {STORE.prefix!r}\n")
 
-    # Report on the tables this script will not touch.
     for logical in ("users", "sessions", "analyses", "login_attempts"):
         name = tables.table_name(logical)
         try:
@@ -110,8 +93,6 @@ def main() -> int:
         client.get_waiter("table_exists").wait(
             TableName=name, WaiterConfig={"Delay": 3, "MaxAttempts": 40})
         print(f"  ready    {name}")
-        # TTL cannot be set until ACTIVE and the call is eventually
-        # consistent, so retry rather than fail the run.
         for attempt in range(5):
             try:
                 client.update_time_to_live(

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "deepfake-web",
+      "runtimeExecutable": "deepfake_system\\run_preview.bat",
+      "runtimeArgs": [],
+      "port": 8000
+    }
+  ]
+}

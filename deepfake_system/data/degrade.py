@@ -1,24 +1,3 @@
-"""Messenger-style degradation, applied on the fly during training.
-
-WhatsApp does not forward the file you sent. It transcodes: H.264 at a
-low bitrate, capped resolution (854x480 on older clients, up to 1280x720
-on newer ones), 4:2:0 chroma, and a re-encode of every frame. That wipes
-out most of the high-frequency evidence a naive detector leans on, which
-is why models that score 99% on FF++ c23 fall to the 70s on a forwarded
-clip.
-
-Two ways to deal with it, and you want both:
-
-  1. Train with these degradations so the model stops relying on
-     artifacts that do not survive transcoding  (this file).
-  2. Build a genuinely re-encoded copy of your test set with ffmpeg and
-     report on it honestly  (scripts/make_messenger_testset.sh).
-
-Everything here operates on a uint8 RGB frame (H, W, 3) and is cheap
-enough to run in the dataloader. The clip-level entry point applies ONE
-sampled recipe to every frame of a clip, because a real re-upload
-degrades a whole video consistently, not frame by frame.
-"""
 from __future__ import annotations
 
 import random
@@ -26,7 +5,6 @@ import random
 import cv2
 import numpy as np
 
-# Approximate WhatsApp output resolutions (long edge).
 _LONG_EDGES = (480, 640, 854, 1280)
 
 
@@ -40,7 +18,6 @@ def _jpeg(frame: np.ndarray, quality: int) -> np.ndarray:
 
 
 def _chroma_subsample(frame: np.ndarray, factor: int = 2) -> np.ndarray:
-    """Halve the chroma planes and put them back — mimics 4:2:0."""
     ycrcb = cv2.cvtColor(frame, cv2.COLOR_RGB2YCrCb)
     y, cr, cb = cv2.split(ycrcb)
     h, w = y.shape
@@ -63,7 +40,6 @@ def _rescale(frame: np.ndarray, long_edge: int) -> np.ndarray:
 
 
 def _block_artifacts(frame: np.ndarray, strength: float) -> np.ndarray:
-    """Quantise 8x8 DCT-ish blocks by averaging toward the block mean."""
     h, w = frame.shape[:2]
     hh, ww = h - h % 8, w - w % 8
     if hh < 8 or ww < 8:
@@ -78,7 +54,6 @@ def _block_artifacts(frame: np.ndarray, strength: float) -> np.ndarray:
 
 
 def sample_recipe(rng: random.Random | None = None) -> dict:
-    """Draw one degradation recipe. Reuse it across a whole clip."""
     r = rng or random
     tier = r.choices(["light", "typical", "harsh"], weights=[3, 5, 2])[0]
     if tier == "light":
@@ -106,7 +81,7 @@ def apply_recipe(frame: np.ndarray, recipe: dict) -> np.ndarray:
     q = recipe["q1"]
     for _ in range(recipe["passes"]):
         out = _jpeg(out, q)
-        q = max(18, q - 8)          # forwards compound the loss
+        q = max(18, q - 8)         
     if recipe["noise"] > 0:
         noise = np.random.normal(0, recipe["noise"], out.shape)
         out = np.clip(out.astype(np.float32) + noise, 0, 255).astype(np.uint8)
@@ -115,23 +90,14 @@ def apply_recipe(frame: np.ndarray, recipe: dict) -> np.ndarray:
 
 def degrade_clip(clip: np.ndarray, rng: random.Random | None = None
                  ) -> tuple[np.ndarray, dict]:
-    """clip: (T, H, W, 3) uint8. Returns the degraded clip and the recipe."""
     recipe = sample_recipe(rng)
     out = np.stack([apply_recipe(f, recipe) for f in clip])
     return out, recipe
 
 
-# --------------------------------------------------------------------------
-# Provenance signals. Cheap, and they tell the UI *why* it is being careful.
-# --------------------------------------------------------------------------
 
 def looks_like_messenger_upload(video_path: str, meta: dict | None = None
                                 ) -> dict:
-    """Heuristics for 'this file has been through a messenger'.
-
-    Returns a dict of flags. Never used as evidence of forgery — only to
-    pick the compression-robust head and to widen the uncertainty band.
-    """
     import os
     import re
 

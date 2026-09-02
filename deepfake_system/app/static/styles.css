@@ -1947,9 +1947,10 @@ body { overflow-x: clip; max-width: 100%; }
   max-width: 200px; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; flex: 0 1 auto; min-width: 0;
 }
-@media (max-width: 1800px) { .bar-meta .chip:nth-child(n+3) { display: none; } }
-@media (max-width: 1600px) { .bar-meta .chip:nth-child(n+2) { display: none; } }
-@media (max-width: 1480px) { .bar-meta { display: none; } }
+@media (max-width: 1800px) { .bar-meta .chip:nth-child(n+4) { display: none; } }
+@media (max-width: 1400px) { .bar-meta .chip:nth-child(n+3) { display: none; } }
+@media (max-width: 1100px) { .bar-meta .chip:nth-child(n+2) { display: none; } }
+@media (max-width: 900px) { .bar-meta { display: none; } }
 
 /* Profile badge: cap the *text* so a long name cannot widen the bar.
    The cap belongs on the name/ID block rather than the whole badge —

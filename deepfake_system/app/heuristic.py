@@ -1,26 +1,3 @@
-"""Signal-based fallback scorer.
-
-The CNN is the real detector. But you need a running server before you
-have a trained checkpoint, and a demo that returns random numbers is
-worse than useless. So this module computes genuine forensic features and
-combines them with fixed, hand-set weights.
-
-It is uncalibrated and it says so everywhere it appears in the UI. Expect
-roughly 60-70% accuracy from it — useful for wiring up the interface and
-for the "classical baseline" row in your results table, not for a claim.
-
-Features, all computed on the tracked face region:
-
-  sharpness_ratio   face detail vs surrounding detail. Swapped faces are
-                    often softer than the frame they were pasted into.
-  boundary_energy   gradient magnitude on the ring around the face oval,
-                    where blending seams live.
-  temporal_flicker  frame-to-frame change in the aligned face, above what
-                    the rest of the frame is doing.
-  spectral_slope    high-band vs mid-band radial FFT energy. Upsampling
-                    from a generator's output resolution leaves a bump.
-  chroma_mismatch   colour spread inside the face vs just outside it.
-"""
 from __future__ import annotations
 
 import math
@@ -36,8 +13,6 @@ WEIGHTS = {
     "chroma_mismatch": 0.12,
 }
 
-# (centre, scale, direction) for the logistic squash. direction -1 means
-# a low raw value is the suspicious one.
 CALIB = {
     "sharpness_ratio": (0.85, 0.30, -1),
     "boundary_energy": (14.0, 6.0, +1),
@@ -97,7 +72,6 @@ def _radial_spectrum(gray):
 
 
 def score_clip(crops: np.ndarray) -> dict:
-    """crops: (T, H, W, 3) uint8 RGB face crops from one video."""
     if len(crops) == 0:
         return {"score": 0.0, "features": {}, "usable": False}
 
@@ -152,7 +126,6 @@ def score_clip(crops: np.ndarray) -> dict:
 
 
 def per_frame_scores(crops: np.ndarray) -> list[float]:
-    """A cheap per-frame proxy so the timeline has something to draw."""
     if len(crops) == 0:
         return []
     h, w = crops[0].shape[:2]

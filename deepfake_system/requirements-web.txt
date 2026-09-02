@@ -10,3 +10,4 @@ opencv-python-headless>=4.9,<5
 boto3>=1.34          # IR 2.4.4 DynamoDB report store; falls back to local JSON
 c2pa-python>=0.5     # validates Content Credentials signatures rather than
                      # only detecting that a manifest box is present
+yt-dlp               # for downloading videos from YouTube

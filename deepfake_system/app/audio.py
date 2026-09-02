@@ -1,36 +1,3 @@
-"""Audio branch — the second half of "multimodal forensic analysis".
-
-IR section 3.4.1, Functional Requirement 1: the system should examine
-"audio features (e.g., voice cloning artifacts, lip-sync
-synchronization)" alongside the visual ones.
-
-Two things are computed here, and they answer different questions:
-
-  Lip-sync agreement
-      Correlation between how open the mouth is (measured from the face
-      crops the visual pipeline already produced) and how loud the voice
-      is (from the audio envelope). Real speech has the two moving
-      together with a short, consistent lag. Puppet-style forgeries —
-      Wav2Lip, SadTalker, most talking-head generators — drive the mouth
-      from audio and usually score *high* here. Dubbed or re-voiced
-      video scores low. So this is a mismatch detector, not a fake
-      detector, and it is reported separately from the face score.
-
-  Synthetic voice indicators
-      Vocoded and diffusion-generated speech tends to have an unusually
-      flat spectrum in the high band, unnaturally regular energy, and
-      very little of the low-level noise floor a microphone always
-      picks up. Three cheap statistics get at that: high-band spectral
-      flatness, silence-floor level, and envelope regularity.
-
-This is deliberately a set of measurements rather than a verdict. The
-honest claim in your report is "the system measures audio-visual
-consistency and surfaces synthetic-speech indicators", not "the system
-detects cloned voices" — a trained speech-antispoofing model would be
-needed for the second claim, and that is a project of its own.
-
-Only numpy, OpenCV and ffmpeg are needed. No extra dependencies.
-"""
 from __future__ import annotations
 
 import math
@@ -40,19 +7,17 @@ import wave
 import cv2
 import numpy as np
 
-SR = 16000            # analysis sample rate
-HOP = 160             # 10 ms hop
-WIN = 400             # 25 ms window
+SR = 16000           
+HOP = 160            
+WIN = 400            
 
 
-# ------------------------------------------------------------------ decode
 
 def extract_audio(video_path: str, seconds: float | None = None
                   ) -> tuple[np.ndarray | None, str | None]:
-    """Decode the audio track to mono float32 at 16 kHz."""
     cmd = ["ffmpeg", "-v", "quiet", "-i", video_path]
     if seconds:
-        cmd += ["-t", str(seconds)]          # must follow the input, not precede it
+        cmd += ["-t", str(seconds)]         
     cmd += ["-vn", "-ac", "1", "-ar", str(SR),
             "-acodec", "pcm_s16le", "-f", "wav", "-"]
     try:
@@ -70,8 +35,6 @@ def extract_audio(video_path: str, seconds: float | None = None
             raw = w.readframes(w.getnframes())
             width = w.getsampwidth()
     except Exception:
-        # ffmpeg streams a wav header with an unknown size; fall back to
-        # skipping the 44-byte header and reading raw PCM.
         raw, width = proc.stdout[44:], 2
 
     dtype = {1: np.int8, 2: np.int16, 4: np.int32}.get(width, np.int16)
@@ -82,7 +45,6 @@ def extract_audio(video_path: str, seconds: float | None = None
     return audio, None
 
 
-# ---------------------------------------------------------------- features
 
 def _frames(x, win=WIN, hop=HOP):
     n = 1 + max(0, (len(x) - win) // hop)
@@ -93,7 +55,6 @@ def _frames(x, win=WIN, hop=HOP):
 
 
 def envelope(audio: np.ndarray) -> np.ndarray:
-    """Per-10ms RMS energy, in dB, normalised to 0..1."""
     fr = _frames(audio)
     if len(fr) == 0:
         return np.zeros(0, np.float32)
@@ -125,8 +86,6 @@ def voice_indicators(audio: np.ndarray) -> dict:
     env = envelope(audio)
     regularity = float(1.0 - min(1.0, np.std(np.diff(env)) * 6)) if len(env) > 2 else 0.0
 
-    # A real recording has a noise floor and an uneven spectrum. High
-    # flatness + high floor + very smooth envelope is the synthetic look.
     def squash(v, c, s):
         return 1 / (1 + math.exp(-max(-30, min(30, (v - c) / s))))
 
@@ -143,15 +102,8 @@ def voice_indicators(audio: np.ndarray) -> dict:
     }
 
 
-# ---------------------------------------------------------------- lip sync
 
 def mouth_openness(crops: np.ndarray) -> np.ndarray:
-    """Vertical dark-pixel extent in the lower-middle of each face crop.
-
-    Deliberately landmark-free so it still works when MediaPipe and dlib
-    are unavailable. The mouth is the darkest horizontal band in the
-    lower third of an aligned face crop; its height tracks openness.
-    """
     out = []
     for c in crops:
         h, w = c.shape[:2]
@@ -174,7 +126,6 @@ def mouth_openness(crops: np.ndarray) -> np.ndarray:
 
 def lipsync_agreement(crops: np.ndarray, crop_times: list,
                       audio: np.ndarray) -> dict:
-    """Correlate mouth movement against the audio envelope."""
     if len(crops) < 8 or audio is None or len(audio) < SR // 2:
         return {}
     mouth = mouth_openness(crops)
@@ -182,7 +133,6 @@ def lipsync_agreement(crops: np.ndarray, crop_times: list,
     if len(env) < 8 or np.std(mouth) < 1e-6:
         return {}
 
-    # Resample the audio envelope onto the frame timestamps.
     env_t = np.arange(len(env)) * (HOP / SR)
     times = np.array([t if t is not None else i * 0.04
                       for i, t in enumerate(crop_times[:len(crops)])])
@@ -191,7 +141,6 @@ def lipsync_agreement(crops: np.ndarray, crop_times: list,
         return {}
     env_at_frames = (env_at_frames - env_at_frames.mean()) / np.std(env_at_frames)
 
-    # Best correlation across a plausible lag window (about +/- 0.4 s).
     best_r, best_lag = -1.0, 0
     span = min(10, len(mouth) // 4)
     for lag in range(-span, span + 1):
@@ -233,11 +182,9 @@ def lipsync_agreement(crops: np.ndarray, crop_times: list,
     }
 
 
-# ------------------------------------------------------------------ public
 
 def analyse(video_path: str, crops: np.ndarray, crop_times: list,
             max_seconds: float = 60.0) -> dict:
-    """Everything the audio branch contributes to one report."""
     audio, error = extract_audio(video_path, seconds=max_seconds)
     if audio is None:
         return {"available": False, "reason": error,

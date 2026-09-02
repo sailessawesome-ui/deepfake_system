@@ -47,14 +47,6 @@ def table_name(logical: str) -> str:
 
 
 def get(logical: str, force_local: bool = False) -> Any:
-    """Return the table for `logical`, DynamoDB or local JSON.
-
-    Falls back to the local file if DynamoDB is configured but
-    unreachable, so a credential problem degrades instead of crashing the
-    app. `.durable` and /api/status both report which one is live, and
-    startup prints a warning — a silent fallback is how you end up
-    demonstrating the wrong backend.
-    """
     key = f"{logical}:{'local' if force_local else STORE.backend}"
     if key in _cache:
         return _cache[key]

@@ -1,15 +1,3 @@
-"""Per-video detection report: how many fakes are caught, how many reals cleared.
-
-    python -m scripts.detection_report --checkpoint runs/v1/best.pt --n 200
-
-Samples an equal number of fake and real videos from a split, scores each at
-video level exactly the way evaluate.py does, and prints the confusion matrix
-plus a threshold sweep.
-
-A balanced sample is deliberate. The test split is ~76% fake, so accuracy on
-it flatters any model that leans toward "fake". Fixing the counts at n vs n
-makes the two error types directly comparable.
-"""
 from __future__ import annotations
 
 import argparse
@@ -30,7 +18,6 @@ from models.net import build_model      # noqa: E402
 
 
 def sample_balanced(videos: dict, n: int, seed: int = 1337):
-    """n fake + n real videos, or as many as the split can supply."""
     rng = random.Random(seed)
     fake = sorted(k for k, v in videos.items() if v["label"] == 1)
     real = sorted(k for k, v in videos.items() if v["label"] == 0)
@@ -47,10 +34,10 @@ def sample_balanced(videos: dict, n: int, seed: int = 1337):
 def confusion(y, p, thr):
     pred = (p >= thr).astype(int)
     return {
-        "tp": int(((pred == 1) & (y == 1)).sum()),   # fake called fake
-        "fn": int(((pred == 0) & (y == 1)).sum()),   # fake called real  <- miss
-        "tn": int(((pred == 0) & (y == 0)).sum()),   # real called real
-        "fp": int(((pred == 1) & (y == 0)).sum()),   # real called fake  <- false alarm
+        "tp": int(((pred == 1) & (y == 1)).sum()),  
+        "fn": int(((pred == 0) & (y == 1)).sum()),  
+        "tn": int(((pred == 0) & (y == 0)).sum()),  
+        "fp": int(((pred == 1) & (y == 0)).sum()),  
     }
 
 

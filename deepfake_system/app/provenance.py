@@ -1,28 +1,3 @@
-"""Metadata and provenance checking.
-
-IR section 3.4.1, Functional Requirement 2: "The system must be able to
-scan the video file it contains to identify embedded digital watermarks
-or authenticity signatures (provenance tracking)."
-
-Three layers, cheapest first:
-
-  1. C2PA / Content Credentials — the actual standard for signed
-     provenance. A C2PA manifest lives in a JUMBF box (`c2pa` / `jumb`)
-     in the MP4 container. If `c2pa` is installed the manifest is parsed
-     and validated; otherwise the box is detected and reported as
-     "present, unverified".
-  2. XMP and container metadata — creator tool, encoder, camera make and
-     model, creation date. Their presence is weak evidence of an
-     unedited camera original; their absence is what a messenger leaves
-     behind.
-  3. Generator fingerprints — several AI video tools stamp their own
-     name into the encoder or comment tags. Finding one is not proof of
-     manipulation, but it is a fact worth surfacing.
-
-Nothing here is treated as evidence of forgery on its own. Provenance
-answers "where did this file come from", which is a different question
-from "was this face manipulated", and the interface keeps them apart.
-"""
 from __future__ import annotations
 
 import json
@@ -31,11 +6,9 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-# Box types that carry a C2PA manifest inside an ISO-BMFF container.
 _JUMBF_MARKERS = (b"jumb", b"c2pa", b"caup", b"urn:uuid:")
 _C2PA_UUID = bytes.fromhex("d8fec3d61b0e483c92975828877ec481")
 
-# Tool names that some generators leave in encoder/comment tags.
 _GENERATOR_HINTS = (
     "heygen", "synthesia", "d-id", "did.com", "runway", "pika", "kling",
     "sora", "luma", "hailuo", "veo", "wav2lip", "sadtalker", "faceswap",
@@ -43,7 +16,6 @@ _GENERATOR_HINTS = (
     "stable diffusion", "comfyui", "animatediff",
 )
 
-# Encoder strings typical of an untouched phone recording.
 _CAMERA_HINTS = (
     "com.apple.quicktime", "iphone", "ipad", "samsung", "xiaomi", "oppo",
     "vivo", "huawei", "pixel", "gopro", "canon", "nikon", "sony",
@@ -63,11 +35,6 @@ def _ffprobe(path: str) -> dict:
 
 
 def _scan_boxes(path: str, limit: int = 4 * 1024 * 1024) -> dict[str, Any]:
-    """Look for a C2PA/JUMBF box near the start and end of the file.
-
-    Manifests sit in the moov atom, which is at the front for streaming
-    files and at the back otherwise, so both ends are checked.
-    """
     found: dict[str, Any] = {"jumbf_box": False, "c2pa_uuid": False, "offset": None}
     try:
         size = Path(path).stat().st_size
@@ -97,7 +64,6 @@ def _scan_boxes(path: str, limit: int = 4 * 1024 * 1024) -> dict[str, Any]:
 
 
 def _parse_c2pa(path: str) -> dict | None:
-    """Validate the manifest properly if the c2pa library is installed."""
     try:
         import c2pa
     except ImportError:
@@ -132,7 +98,6 @@ def _parse_c2pa(path: str) -> dict | None:
 
 
 def inspect(video_path: str, filename: str = "") -> dict:
-    """Full provenance report for one file."""
     probe = _ffprobe(video_path)
     fmt = probe.get("format", {}) or {}
     tags = {k.lower(): str(v) for k, v in (fmt.get("tags", {}) or {}).items()}
@@ -202,7 +167,6 @@ def inspect(video_path: str, filename: str = "") -> dict:
 
 
 def summarise(report: dict) -> str:
-    """One line for the UI chip."""
     if report["c2pa"] == "verified":
         return "signed provenance"
     if report["c2pa"] in ("present_unverified", "invalid"):

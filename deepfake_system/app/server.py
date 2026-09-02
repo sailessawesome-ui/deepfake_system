@@ -1,12 +1,3 @@
-"""Web server.
-
-    python -m app.server            # http://127.0.0.1:8000
-    uvicorn app.server:app --host 0.0.0.0 --port 8000
-
-Zero retention: the upload is written to a temp file, scored, and deleted
-in a finally block. Face thumbnails are returned to the browser in the
-response and never written to disk.
-"""
 from __future__ import annotations
 
 import asyncio
@@ -35,7 +26,6 @@ from app.engine import Engine  # noqa: E402
 from app.store import ReportStore, build_record  # noqa: E402
 
 STATIC = Path(__file__).parent / "static"
-# DFD_MAX_UPLOAD_MB in the repo's `env` file (200 there, not 250).
 MAX_BYTES = AUTH.max_upload_mb * 1024 * 1024
 ALLOWED = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".3gp", ".m4v"}
 
@@ -45,9 +35,6 @@ _store: ReportStore | None = None
 _auth: AuthStore | None = None
 _audit: audit_mod.AuditLog | None = None
 
-# One analysis at a time per worker. Face detection and inference are
-# CPU-bound and will thrash if several run at once; queueing keeps
-# latency predictable under load (IR 3.4.1, scalability).
 _slots = asyncio.Semaphore(int(os.getenv("DF_CONCURRENCY", "2")))
 
 
@@ -86,22 +73,15 @@ def get_audit() -> audit_mod.AuditLog:
 
 
 def client_ip(request: Request) -> str:
-    """Railway sits behind a proxy, so request.client.host is the proxy.
-    The left-most X-Forwarded-For entry is the original caller.
-    """
     fwd = request.headers.get("x-forwarded-for", "")
     if fwd:
         return fwd.split(",")[0].strip()
     return request.client.host if request.client else ""
 
 
-# ------------------------------------------------------------- auth deps
 def current_user(request: Request) -> dict | None:
-    """The signed-in user, or None. Never raises — for endpoints that
-    behave differently when signed in but do not demand it."""
     token = request.cookies.get(AUTH.cookie_name, "")
     if not token:
-        # Lets the browser extension authenticate without a cookie jar.
         header = request.headers.get("authorization", "")
         if header.lower().startswith("bearer "):
             token = header[7:].strip()
@@ -115,9 +95,6 @@ def current_user(request: Request) -> dict | None:
 
 
 def require_user(request: Request) -> dict:
-    """Gate an endpoint behind a session. IR 3.4.1 restricts evidence
-    ingestion to authenticated investigators; this is where that is
-    actually enforced, rather than by hiding a button in the UI."""
     if not AUTH.require_login:
         return current_user(request) or {"user_id": "anonymous",
                                          "email": None, "name": "Anonymous"}
@@ -141,16 +118,9 @@ def status(request: Request):
 
     out["authenticated"] = user is not None
     out["login_required"] = AUTH.require_login
-    # One honest flag the deployment can be judged on: if any table is on
-    # the local backend inside a container, findings do not survive a
-    # redeploy. Safe to publish — it is a property, not a detail.
     out["persistence"] = {"durable": all(t.get("durable") for t in tables)}
 
     if user:
-        # Table names, region and raw boto3 error text are operational
-        # detail. They are genuinely useful when debugging a deployment
-        # and have no business being readable by anyone who curls the
-        # health check, so they are behind a session.
         out["store"] = store_st
         out["auth"] = auth_st
         out["audit"] = audit_st
@@ -164,7 +134,6 @@ def status(request: Request):
     return out
 
 
-# ----------------------------------------------------------------- auth
 class RegisterRequest(BaseModel):
     email: str
     password: str
@@ -193,9 +162,9 @@ def _set_session_cookie(response: Response, token: str) -> None:
     response.set_cookie(
         AUTH.cookie_name, token,
         max_age=AUTH.session_days * 86400,
-        httponly=True,                 # JS cannot read it, so XSS cannot steal it
-        secure=AUTH.cookie_secure,     # HTTPS only in production
-        samesite="lax",                # blocks cross-site CSRF on POST
+        httponly=True,                
+        secure=AUTH.cookie_secure,    
+        samesite="lax",               
         path="/",
     )
 
@@ -268,8 +237,6 @@ def auth_logout_all(request: Request, response: Response,
 @router.patch("/auth/profile")
 def auth_update_profile(body: ProfileRequest, request: Request,
                         user: dict = Depends(require_user)):
-    """Edit the examiner's own details. The name and ID appear on every
-    exported report, so a change here is worth an audit entry."""
     try:
         updated = get_auth().update_profile(user["user_id"], body.name,
                                             body.studentId, body.role)
@@ -292,9 +259,6 @@ def auth_change_password(body: PasswordRequest, request: Request,
     except AuthError as exc:
         raise HTTPException(400, str(exc))
 
-    # Everything else signed in as this account is now stale. Keep only
-    # the session that made the change so the user is not logged out of
-    # the browser they are sitting in front of.
     token = request.cookies.get(AUTH.cookie_name, "")
     revoked = get_auth().revoke_others(user["user_id"], token)
     get_audit().write(audit_mod.PASSWORD_CHANGE, user_id=user["user_id"],
@@ -311,14 +275,8 @@ def auth_me(request: Request):
     return {"user": public_user(user)}
 
 
-# -------------------------------------------------------------- reports
 @router.get("/reports")
 def reports(request: Request, limit: int = Query(25, ge=1, le=100)):
-    """Past findings. The videos are gone; the reports remain.
-
-    Scoped to the caller. Chain of custody means an analyst sees the
-    evidence they handled, not everyone's.
-    """
     store = get_store()
     if not store:
         return {"reports": [], "backend": "disabled"}
@@ -332,15 +290,7 @@ def reports(request: Request, limit: int = Query(25, ge=1, le=100)):
             "scope": "all"}
 
 
-# ------------------------------------------------- model administration
 def require_admin(request: Request) -> dict:
-    """Admin gate for anything that changes how detection behaves.
-
-    The detection model is what the entire forensic claim rests on. If any
-    account could swap it, no report from this system would be
-    falsifiable — you could never say which weights produced a verdict and
-    who chose them. `is_admin` is set on the user record in `dfd_users`.
-    """
     user = require_user(request)
     if not user.get("is_admin"):
         raise HTTPException(403, "Administrator access is required to "
@@ -354,7 +304,6 @@ class ActivateRequest(BaseModel):
 
 @router.get("/models")
 def list_models(user: dict = Depends(require_admin)):
-    """Checkpoints available to activate — IR 3.4.1 non-functional 4."""
     from app import modelreg
     engine = get_engine()
     return {"active": engine.model_version, "mode": engine.mode,
@@ -363,7 +312,6 @@ def list_models(user: dict = Depends(require_admin)):
 
 @router.post("/models/validate")
 def validate_model(body: ActivateRequest, user: dict = Depends(require_admin)):
-    """Dry run: does this checkpoint load and score, without going live."""
     from pathlib import Path as _P
 
     from app import modelreg
@@ -379,7 +327,6 @@ def validate_model(body: ActivateRequest, user: dict = Depends(require_admin)):
 @router.post("/models/activate")
 def activate_model(body: ActivateRequest, request: Request,
                    user: dict = Depends(require_admin)):
-    """Validate a checkpoint and swap it in without restarting."""
     from app import modelreg
     engine = get_engine()
     result = modelreg.activate(engine, body.checkpoint)
@@ -395,8 +342,6 @@ def activate_model(body: ActivateRequest, request: Request,
          "active": result.get("active")})
 
     if not result.get("ok"):
-        # 422, not 500: the request was understood and the candidate was
-        # refused on its merits. The running model is untouched.
         raise HTTPException(422, str(result.get("reason", "rejected")))
     return result
 
@@ -404,14 +349,9 @@ def activate_model(body: ActivateRequest, request: Request,
 @router.get("/audit")
 def audit_feed(limit: int = Query(50, ge=1, le=200),
                user: dict = Depends(require_user)):
-    """The caller's own activity trail — IR 2.4.4 "system logs"."""
     return {"events": get_audit().for_user(user["user_id"], limit)}
 
 
-# Keyed by user. This was a single global, which was correct while the
-# server had one operator and became a cross-account leak the moment it
-# had accounts: whoever polled /reports/latest got whatever the previous
-# caller had just analysed, whoever they were.
 _LATEST_RESULT: dict[str, dict] = {}
 _LATEST_CAP = 64
 
@@ -580,8 +520,6 @@ async def analyse(request: Request, video: UploadFile = File(...),
         digest = sha256.hexdigest()
         engine = get_engine()
 
-        # analyse() is CPU-bound. Running it directly in this coroutine
-        # would block the event loop and stall every other request.
         async with _slots:
             result = await run_in_threadpool(engine.analyse, tmp.name, name)
 
@@ -628,11 +566,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Deepfake Forensics", description="BSc Cybersecurity Capstone System", docs_url=None, redoc_url=None)
 
-# `allow_origins=["*"]` together with `allow_credentials=True` is invalid
-# per the CORS spec and every browser drops the response, which would have
-# broken session cookies the moment this shipped. The interface is served
-# from the same origin as the API and needs no CORS at all; the list below
-# exists for the browser extension and for any origin you name explicitly.
 _ORIGINS = [o.strip() for o in
             os.getenv("DFD_ALLOWED_ORIGINS",
                       os.getenv("DF_ALLOWED_ORIGINS", "")).split(",")
@@ -645,8 +578,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
-# Added last, so it runs first and its headers are on every response —
-# including the ones CORS or an error handler produces. IR 3.4.1 security.
 app.add_middleware(security_mod.SecurityHeadersMiddleware)
 app.include_router(router, prefix="/api")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
@@ -654,9 +585,6 @@ app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 @app.on_event("startup")
 def on_startup():
-    # Before the engine looks for a checkpoint, not after: on a git-based
-    # deploy `runs/` is empty, and an engine that starts without weights
-    # silently serves the classical baseline for the life of the process.
     from app.modelfetch import ensure_calibration, ensure_checkpoint
     fetch = ensure_checkpoint()
     ensure_calibration()
@@ -690,7 +618,5 @@ def index():
 
 if __name__ == "__main__":
     import uvicorn
-    # Railway assigns the port at runtime and routes to it; a hardcoded
-    # 8000 makes the deploy fail its health check.
     uvicorn.run("app.server:app", host="0.0.0.0",
                 port=int(os.getenv("PORT", "8000")), reload=False)

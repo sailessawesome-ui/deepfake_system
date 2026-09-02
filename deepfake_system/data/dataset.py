@@ -1,8 +1,3 @@
-"""Clip-level dataset built from the manifest.
-
-One item = T face crops from one video, plus (optionally) a degraded view
-of the same clip so the model can be trained to agree with itself.
-"""
 from __future__ import annotations
 
 import random
@@ -53,7 +48,6 @@ class ClipDataset(Dataset):
         self.clips_per_video = clips_per_video
         self.degrade_prob = (TRAIN.degrade_prob if degrade_prob is None
                              else degrade_prob)
-        # paired=True returns clean AND degraded views (for consistency loss)
         self.paired = train if paired is None else paired
         self.img_size = img_size or DATA.img_size
         self.T = DATA.clip_len
@@ -61,7 +55,6 @@ class ClipDataset(Dataset):
     def __len__(self):
         return len(self.ids) * self.clips_per_video
 
-    # ---------------------------------------------------------------- utils
     def _sample_frames(self, frames, rng):
         n = len(frames)
         need = self.T
@@ -91,20 +84,19 @@ class ClipDataset(Dataset):
         return np.stack(out)
 
     def _spatial_aug(self, clip, rng):
-        """Same geometric transform for the whole clip."""
         if rng.random() < 0.5:
             clip = clip[:, :, ::-1]
-        if rng.random() < 0.3:                       # small rotation
+        if rng.random() < 0.3:                      
             ang = rng.uniform(-8, 8)
             h, w = clip.shape[1:3]
             M = cv2.getRotationMatrix2D((w / 2, h / 2), ang, 1.0)
             clip = np.stack([cv2.warpAffine(f, M, (w, h),
                                             borderMode=cv2.BORDER_REFLECT)
                              for f in clip])
-        if rng.random() < 0.3:                       # brightness / contrast
+        if rng.random() < 0.3:                      
             a, b = rng.uniform(0.85, 1.15), rng.uniform(-15, 15)
             clip = np.clip(clip.astype(np.float32) * a + b, 0, 255).astype(np.uint8)
-        if rng.random() < 0.15:                      # cutout on a random frame
+        if rng.random() < 0.15:                     
             t = rng.randrange(len(clip))
             h, w = clip.shape[1:3]
             ch, cw = rng.randint(20, h // 4), rng.randint(20, w // 4)
@@ -116,9 +108,8 @@ class ClipDataset(Dataset):
     def _to_tensor(self, clip):
         x = clip.astype(np.float32) / 255.0
         x = (x - MEAN) / STD
-        return torch.from_numpy(x).permute(0, 3, 1, 2)   # (T, 3, H, W)
+        return torch.from_numpy(x).permute(0, 3, 1, 2)  
 
-    # ------------------------------------------------------------------ get
     def __getitem__(self, i):
         vid = self.ids[i % len(self.ids)]
         rng = random.Random() if self.train else random.Random(i)
@@ -148,7 +139,6 @@ class ClipDataset(Dataset):
 
 
 def make_sampler(videos: dict):
-    """Balance real vs fake, and stop FF++ from swamping the batch."""
     from torch.utils.data import WeightedRandomSampler
     ids = [k for k, v in videos.items() if len(v["frames"]) >= 2]
     n_by_label = defaultdict(int)

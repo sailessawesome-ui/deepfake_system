@@ -1,16 +1,3 @@
-"""Scan the extracted datasets and build one unified manifest.
-
-The four archives all use different folder layouts, so this script infers
-label / video-id / method from the path and writes a single CSV:
-
-    source,video_id,identity,label,method,frame_path
-
-Run it with --dry-run first. It prints the layout it detected so you can
-fix the patterns below before committing to a 30-minute scan.
-
-    python -m data.build_manifest --dry-run
-    python -m data.build_manifest
-"""
 from __future__ import annotations
 
 import argparse
@@ -26,14 +13,11 @@ from config import DATA  # noqa: E402
 
 IMG_EXT = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 
-# Path tokens that mark a clip as authentic. Checked case-insensitively.
 REAL_TOKENS = (
     "original", "originals", "real", "youtube", "actors", "pristine",
     "celeb-real", "celeb_real", "youtube-real", "youtube_real", "genuine",
 )
 
-# Tokens that mark a clip as manipulated, grouped by generator family so
-# the evaluation can report per-family behaviour.
 FAKE_METHODS = (
     "deepfakes", "face2face", "faceswap", "neuraltextures", "faceshifter",
     "celeb-synthesis", "celeb_synthesis", "simswap", "inswapper", "blendface",
@@ -41,21 +25,10 @@ FAKE_METHODS = (
     "wav2lip", "sadtalker", "mraa", "fomm", "tpsm", "styleheat",
     "sd15", "sdxl", "ddim", "ddpm", "stargan", "stylegan", "collab",
     "vqgan", "pixart", "midjourney", "heygen", "hyperreenact",
-    # DF40 spellings. "inswap" is the folder name; the "inswapper" token
-    # above is checked first so archives using the longer name keep it.
-    # "dit_" is anchored to the underscore because a bare "dit" would also
-    # match words like "condition" and "editing" elsewhere in a path.
     "collabdiff", "deepfacelab", "inswap", "dit_",
-    # Singular. Some FF++ redistributions name the folder "deepfake", which
-    # the plural token above does not match. Kept last so archives using
-    # "deepfakes" still report under that name.
     "deepfake",
 )
 
-# Path components that state the label outright. These outrank any generator
-# name found in the path: DF40 stores each generator's source clips under
-# real/<generator>_<id>/, so matching the generator first would relabel every
-# one of those real videos as fake.
 REAL_DIRS = {"real", "original", "originals", "pristine", "authentic",
              "youtube", "actors", "genuine"}
 FAKE_DIRS = {"fake", "manipulated", "synthesis", "synth", "generated"}
@@ -66,12 +39,6 @@ def _norm(p: Path) -> str:
 
 
 def infer_label(path: Path) -> tuple[int, str]:
-    """Return (label, method). label 1 = fake, 0 = real.
-
-    A real/ or fake/ directory component decides the label; the generator
-    name only names the method. Substring matching alone gets this wrong on
-    DF40, where real clips live at real/<generator>_<id>/.
-    """
     s = _norm(path)
     parts = set(s.split("/"))
     method = next((m for m in FAKE_METHODS if m in s), None)
@@ -81,7 +48,6 @@ def infer_label(path: Path) -> tuple[int, str]:
     if parts & FAKE_DIRS:
         return 1, method or "unknown_fake"
 
-    # No explicit directory - fall back to substring order.
     if method:
         return 1, method
     for t in REAL_TOKENS:
@@ -95,8 +61,6 @@ def infer_label(path: Path) -> tuple[int, str]:
 
 
 def infer_video_id(path: Path, source: str) -> str:
-    """Frames of one video normally sit in one folder; fall back to the
-    numeric stem prefix when they are flat files."""
     parent = path.parent.name
     if re.fullmatch(r"[A-Za-z0-9_\-]{2,}", parent) and parent.lower() not in {
         "frames", "faces", "images", "crops"
@@ -106,9 +70,6 @@ def infer_video_id(path: Path, source: str) -> str:
     return f"{source}/{parent}/{stem or path.stem}"
 
 
-# Splits are often already baked into the archive layout. FF++ unpacks as
-# dataset_split/test/deepfake/008_990/... and Celeb-DF as test/fake/<hash>/...
-# Both name the split as a whole path component.
 _SPLIT_ALIASES = {
     "train": "train", "training": "train",
     "val": "val", "valid": "val", "validation": "val",
@@ -117,7 +78,6 @@ _SPLIT_ALIASES = {
 
 
 def infer_split(path: Path) -> str | None:
-    """Return the split named in the path, or None if the layout has none."""
     for part in _norm(path).split("/")[:-1]:
         if part in _SPLIT_ALIASES:
             return _SPLIT_ALIASES[part]
@@ -125,8 +85,6 @@ def infer_split(path: Path) -> str | None:
 
 
 def infer_identity(video_id: str) -> str:
-    """FF++ uses 000_003 (target_source); Celeb-DF uses idNN_xxxx.
-    Identity grouping stops the same face landing in train and test."""
     tail = video_id.rsplit("/", 1)[-1]
     m = re.match(r"(id\d+)", tail)
     if m:
@@ -161,28 +119,11 @@ def scan(root: Path, source: str, limit: int | None = None):
 
 
 def assign_splits(rows, use_path_splits=True):
-    """Split on identity so no face appears in two splits.
-
-    When an archive already ships a train/val/test layout AND every one of
-    its files sits under one of those folders, that split is used verbatim
-    for that source. Two reasons to prefer it:
-
-      * It is the split the dataset was published with, so numbers stay
-        comparable to other work.
-      * Identity grouping only works when the folder name carries the
-        identity. FF++ does (008_990 -> 008). Celeb-DF redistributions that
-        hash the folder name do not, so every video looks like its own
-        identity and the "identity split" silently degrades into a video
-        split. Deferring to the shipped layout is the honest option.
-
-    Sources without a usable layout fall back to identity assignment.
-    """
     rng = random.Random(DATA.seed)
     by_source = defaultdict(set)
     for r in rows:
         by_source[r["source"]].add((r["identity"], r["label"]))
 
-    # Which sources carry a complete split layout?
     path_split_ok = {}
     for source in by_source:
         rows_s = [r for r in rows if r["source"] == source]
@@ -196,11 +137,7 @@ def assign_splits(rows, use_path_splits=True):
                 split_of[(source, ident)] = "holdout"
             continue
         if path_split_ok[source]:
-            continue                      # handled per-row below
-        # Deduplicate by identity before assigning. An identity that owns
-        # both real and fake clips (FF++ target 008; DF40's real/<gen>_<id>
-        # counterparts) otherwise gets written twice and the later write
-        # wins, pushing most identities into train and skewing the ratios.
+            continue                     
         ids = sorted({ident for ident, _ in ids})
         rng.shuffle(ids)
         n = len(ids)
@@ -221,7 +158,6 @@ def assign_splits(rows, use_path_splits=True):
             s = r["path_split"]
         else:
             s = split_of[(r["source"], r["identity"])]
-        # Unseen-generator probe: pull these methods out of train entirely.
         if s == "train" and r["method"] in DATA.holdout_methods:
             s = "unseen_method"
         r["split"] = s

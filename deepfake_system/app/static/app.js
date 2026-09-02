@@ -122,9 +122,13 @@ async function loadStatus() {
       }
     }
 
+    const backendChip = document.createElement('span');
+    backendChip.className = 'chip chip--live';
+    backendChip.textContent = `face backend · ${s.face_backend}`;
+
     el.engineMeta.append(
       engine,
-      chip(`faces · ${s.face_backend}`),
+      backendChip,
       chip(s.device.toUpperCase()),
       chip(`threshold ${Number(s.threshold).toFixed(2)}`),
     );

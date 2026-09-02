@@ -1,32 +1,3 @@
-"""Grad-CAM explanations — IR 3.4.1, UI/UX requirement 3.
-
-The report asks for "minimal visual cues (Explainable AI) to explain why
-it was called out (e.g., pointing to a particular artifact on the face)",
-and records it as the top priority of more than half of the 56 survey
-respondents. Nothing in the system did this: it returned a number and a
-label, and the analyst had to take both on trust.
-
-Grad-CAM (Selvaraju et al., 2017) answers "which pixels moved this
-verdict" by taking the gradient of the model's own decision with respect
-to the last convolutional feature map. Channels whose activations push
-the logit up are weighted up; the weighted sum, rectified, is a coarse map
-over the face crop. It is not a segmentation of "the fake part" — it is
-where the network looked, which is the honest claim to make in a viva.
-
-Two properties that matter for a forensic tool:
-
-- It explains *this* model's decision, not deepfakes in general. If the
-  map lands on the background, that is real evidence the score is being
-  driven by something other than the face, and the analyst should see it.
-- It costs one extra forward and backward pass per explained frame, so
-  only the few most suspicious frames are explained. Explaining all of
-  them would multiply a 10-15 s analysis several times over for no
-  additional insight.
-
-Nothing here is written to disk. Overlays go back in the JSON response
-next to the existing thumbnails and die with the request, which is what
-IR 3.4.1's zero-retention requirement demands.
-"""
 from __future__ import annotations
 
 import base64
@@ -37,14 +8,6 @@ import numpy as np
 
 
 def _last_conv(module) -> Any:
-    """The deepest Conv2d in the backbone.
-
-    Grad-CAM needs a layer that still has spatial extent; by the time the
-    features reach the classifier head they are a single vector and there
-    is nothing left to localise. Walking for the last Conv2d works for
-    both the timm backbones and MesoInception4 without hard-coding a
-    layer name per architecture.
-    """
     import torch.nn as nn  # type: ignore
     found = None
     for m in module.modules():
@@ -54,7 +17,6 @@ def _last_conv(module) -> Any:
 
 
 class GradCAM:
-    """Hooks a layer, then turns one frame's logit into a heatmap."""
 
     def __init__(self, model, device: str = "cpu"):
         self.model = model
@@ -75,8 +37,6 @@ class GradCAM:
             self._grads = gout[0]
 
         self._handles.append(self.layer.register_forward_hook(fwd))
-        # full_backward_hook is the non-deprecated spelling and fires
-        # after the whole module's grads are computed.
         self._handles.append(self.layer.register_full_backward_hook(bwd))
         return self
 
@@ -91,7 +51,6 @@ class GradCAM:
         return False
 
     def cam(self, clip: Any, frame_index: int) -> np.ndarray | None:
-        """clip: (1, T, 3, H, W) tensor. Returns an HxW map in [0, 1]."""
         import torch  # type: ignore
 
         if self.layer is None:
@@ -108,14 +67,12 @@ class GradCAM:
             if self._acts is None or self._grads is None:
                 return None
 
-            # The model flattens (B, T) into the batch dimension before the
-            # backbone, so with B=1 the row for frame t is simply row t.
             row = min(idx, self._acts.shape[0] - 1)
-            acts = self._acts[row].detach()               # (C, H, W)
-            grads = self._grads[row].detach()             # (C, H, W)
+            acts = self._acts[row].detach()              
+            grads = self._grads[row].detach()            
 
-            weights = grads.mean(dim=(1, 2), keepdim=True)   # (C, 1, 1)
-            cam = torch.relu((weights * acts).sum(dim=0))    # (H, W)
+            weights = grads.mean(dim=(1, 2), keepdim=True)  
+            cam = torch.relu((weights * acts).sum(dim=0))   
             cam_np = cam.float().cpu().numpy()
         except Exception as exc:
             print(f"[explain] Grad-CAM failed: {type(exc).__name__}: {exc}")
@@ -125,31 +82,21 @@ class GradCAM:
 
         span = float(cam_np.max() - cam_np.min())
         if span < 1e-8:
-            # A flat map means the gradient said nothing. Returning zeros
-            # would render as a uniform wash that looks like a real result;
-            # better to show no overlay at all.
             return None
         return (cam_np - cam_np.min()) / span
 
 
 def overlay(crop_rgb: np.ndarray, cam: np.ndarray, size: int = 104,
             alpha: float = 0.45, quality: int = 72) -> str | None:
-    """Blend a heatmap over the face crop and return a data URI."""
     try:
         h, w = crop_rgb.shape[:2]
         heat = cv2.resize(cam.astype(np.float32), (w, h),
                           interpolation=cv2.INTER_CUBIC)
         heat = np.clip(heat, 0.0, 1.0)
 
-        # INFERNO reads as "intensity" without implying the red/green
-        # semantics of a verdict, which JET would.
         colour = cv2.applyColorMap((heat * 255).astype(np.uint8),
                                    cv2.COLORMAP_INFERNO)[:, :, ::-1]
 
-        # Weight the blend by the map itself, so cool regions stay close
-        # to the original pixels and only the hot ones are tinted. A flat
-        # alpha washes the whole face and hides the very artefact the
-        # analyst is being pointed at.
         a = (heat * alpha)[..., None]
         blended = crop_rgb.astype(np.float32) * (1 - a) + \
             colour.astype(np.float32) * a
@@ -167,13 +114,6 @@ def overlay(crop_rgb: np.ndarray, cam: np.ndarray, size: int = 104,
 
 
 def describe(cam: np.ndarray) -> str:
-    """Where the map concentrates, in words.
-
-    The IR asks for output a non-technical user can read, so the heatmap
-    ships with a sentence rather than only a picture. Thirds of the crop
-    are used because face crops are aligned, so the regions correspond
-    roughly to brow/eyes, nose/cheeks and mouth/jaw.
-    """
     h, w = cam.shape
     rows = {"upper face (eyes and brow)": cam[:h // 3].mean(),
             "mid-face (nose and cheeks)": cam[h // 3:2 * h // 3].mean(),
@@ -193,7 +133,6 @@ def describe(cam: np.ndarray) -> str:
 
 def explain_clip(model, crops: np.ndarray, indices: list[int],
                  device: str, clip_len: int, mean, std) -> dict[int, dict]:
-    """Grad-CAM for a handful of frames. Never raises."""
     import torch  # type: ignore
 
     out: dict[int, dict] = {}
@@ -208,13 +147,6 @@ def explain_clip(model, crops: np.ndarray, indices: list[int],
             for i in indices:
                 if not 0 <= i < n:
                     continue
-                # A single frame, not the whole clip. `frame_logits[0, t]`
-                # comes from `frame_head(feats[0, t])`, and `feats[0, t]`
-                # depends only on `x[0, t]` — so pushing the other
-                # clip_len-1 frames through the backbone would cost a
-                # multiple of the time and change nothing about this
-                # frame's gradient. The temporal layer still runs, over a
-                # sequence of one, and its output is not backpropagated.
                 window = crops[i:i + 1]
                 arr = window.astype(np.float32) / 255.0
                 arr = (arr - mean) / std
